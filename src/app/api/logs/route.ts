@@ -23,7 +23,7 @@ export async function POST(request: Request) {
     // Limit to top 5 hashes
     const hashesToProcess = hashes.slice(0, 5);
     const decodedLogs: any[] = [];
-    const decimalsCache: Record<string, number> = {};
+    const decimalsCache: Record<string, { decimals: number, symbol: string }> = {};
 
     // Fetch receipts concurrently
     const receipts = await Promise.all(
@@ -43,18 +43,31 @@ export async function POST(request: Request) {
           if (parsedLog && parsedLog.name === 'Transfer') {
             const tokenAddress = log.address;
             let decimals = 18; // Default fallback for generic ERC-20
+            let symbol = "ERC20"; // Default fallback symbol
             
-            // Dynamically query the token contract for its exact decimals
+            // Dynamically query the token contract for its exact decimals and symbol
             try {
               if (decimalsCache[tokenAddress] !== undefined) {
-                decimals = decimalsCache[tokenAddress];
+                decimals = decimalsCache[tokenAddress].decimals;
+                symbol = decimalsCache[tokenAddress].symbol;
               } else {
-                const contract = new ethers.Contract(tokenAddress, ERC20_DECIMALS_ABI, provider);
-                decimals = Number(await contract.decimals());
-                decimalsCache[tokenAddress] = decimals;
+                const contract = new ethers.Contract(tokenAddress, [
+                  "function decimals() view returns (uint8)",
+                  "function symbol() view returns (string)"
+                ], provider);
+                
+                // Fetch both concurrently for speed
+                const [dec, sym] = await Promise.all([
+                  contract.decimals().catch(() => 18),
+                  contract.symbol().catch(() => "ERC20")
+                ]);
+                
+                decimals = Number(dec);
+                symbol = sym;
+                decimalsCache[tokenAddress] = { decimals, symbol };
               }
-            } catch (decimalsError) {
-              // If the contract doesn't implement decimals(), safely ignore and stick to 18
+            } catch (err) {
+              // Safely ignore and stick to defaults
             }
 
             const rawAmount = parsedLog.args[2];
@@ -66,7 +79,8 @@ export async function POST(request: Request) {
               to: parsedLog.args[1],
               amountRaw: formattedAmount,
               contractAddress: tokenAddress,
-              decimals: Number(decimals)
+              decimals: Number(decimals),
+              symbol: symbol
             });
           }
         } catch (e) {

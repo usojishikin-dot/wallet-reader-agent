@@ -622,8 +622,8 @@ export default function Home() {
                           </div>
                           <div className="pt-3 border-t border-slate-800 flex items-center justify-between">
                             <span className="text-xs text-slate-500 uppercase">Amount</span>
-                            <span className="text-sm font-bold text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-purple-400 truncate max-w-[150px]" title={log.amountRaw}>
-                              {displayAmount}
+                            <span className="text-sm font-bold text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-purple-400 truncate max-w-[120px] sm:max-w-[150px]" title={`${log.amountRaw} ${log.symbol || 'ERC20'}`}>
+                              {displayAmount} <span className="text-xs text-indigo-300/80">{log.symbol || 'ERC20'}</span>
                             </span>
                           </div>
                         </div>

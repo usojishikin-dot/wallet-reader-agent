@@ -37,7 +37,7 @@ export async function POST(request: Request) {
             category: ["external", "erc20"],
             withMetadata: true,
             excludeZeroValue: false,
-            maxCount: "0x14", // get up to 20 to ensure we have enough when merging
+            maxCount: "0x28", // get up to 40 to ensure we have enough when merging
             order: "desc"     // newest first
           }
         ]
@@ -73,9 +73,9 @@ export async function POST(request: Request) {
       type: tx.from.toLowerCase() === address.toLowerCase() ? 'OUT' : 'IN'
     }));
 
-    // Sort by block number descending and grab the top 10 absolute newest transactions
+    // Sort by block number descending and grab the top 20 absolute newest transactions
     allTxs.sort((a, b) => b.blockNumber - a.blockNumber);
-    const recentTxs = allTxs.slice(0, 10);
+    const recentTxs = allTxs.slice(0, 20);
 
     return NextResponse.json({
       success: true,

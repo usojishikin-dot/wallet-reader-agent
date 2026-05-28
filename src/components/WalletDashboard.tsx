@@ -273,6 +273,42 @@ export default function WalletDashboard({ initialAddress }: { initialAddress?: s
     }
   };
 
+  const handleExportJSON = () => {
+    if (!result) return;
+    const dataStr = JSON.stringify(result, null, 2);
+    const blob = new Blob([dataStr], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const downloadAnchorNode = document.createElement('a');
+    downloadAnchorNode.setAttribute("href", url);
+    downloadAnchorNode.setAttribute("download", `wallet_${result.address}_data.json`);
+    document.body.appendChild(downloadAnchorNode);
+    downloadAnchorNode.click();
+    document.body.removeChild(downloadAnchorNode);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleExportCSV = () => {
+    if (!result || !result.transactions) return;
+    const headers = ["Hash", "From", "To", "Value", "Asset", "Block", "Date", "Type"];
+    const csvContent = [
+      headers.map(h => `"${h}"`).join(","),
+      ...result.transactions.map((tx: any) => {
+        const date = tx.timestamp ? new Date(tx.timestamp).toISOString() : `Block ${tx.blockNumber}`;
+        return `"${tx.hash}","${tx.from}","${tx.to || ''}","${tx.value}","${tx.asset}","${tx.blockNumber}","${date}","${tx.type}"`;
+      })
+    ].join("\n");
+    
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const downloadAnchorNode = document.createElement('a');
+    downloadAnchorNode.setAttribute("href", url);
+    downloadAnchorNode.setAttribute("download", `wallet_${result.address}_transactions.csv`);
+    document.body.appendChild(downloadAnchorNode);
+    downloadAnchorNode.click();
+    document.body.removeChild(downloadAnchorNode);
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="min-h-screen flex flex-col relative overflow-hidden bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-50 font-sans transition-colors duration-500">
       <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
@@ -385,7 +421,8 @@ export default function WalletDashboard({ initialAddress }: { initialAddress?: s
         {/* Results Section */}
         {result && (
           <div className="mt-12 p-4 sm:p-6 md:p-8 bg-white/70 dark:bg-slate-900/50 backdrop-blur-xl border border-slate-200/80 dark:border-slate-800 rounded-2xl sm:rounded-3xl shadow-xl dark:shadow-2xl animate-in fade-in slide-in-from-bottom-4 duration-500 relative z-30 w-full">
-            <h3 className="text-lg sm:text-xl font-semibold text-slate-900 dark:text-slate-200 mb-6 sm:mb-8 flex items-center gap-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 sm:mb-8">
+              <h3 className="text-lg sm:text-xl font-semibold text-slate-900 dark:text-slate-200 flex items-center gap-3">
                 {loading ? (
                   <div className="w-4 h-4 rounded-full border-2 border-slate-300 dark:border-slate-600 border-t-indigo-500 animate-spin" />
                 ) : (
@@ -393,6 +430,20 @@ export default function WalletDashboard({ initialAddress }: { initialAddress?: s
                 )}
                 {loading ? "Analyzing..." : "Wallet Analysis Complete"}
               </h3>
+              
+              {!loading && result && (
+                <div className="flex items-center gap-2 self-end sm:self-auto">
+                  <button onClick={handleExportCSV} className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 hover:text-slate-900 dark:hover:text-white transition-colors flex items-center gap-1.5 border border-slate-200 dark:border-slate-700">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                    CSV
+                  </button>
+                  <button onClick={handleExportJSON} className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-500/20 hover:text-indigo-700 dark:hover:text-indigo-300 transition-colors flex items-center gap-1.5 border border-indigo-200 dark:border-indigo-500/30">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                    JSON
+                  </button>
+                </div>
+              )}
+            </div>
               
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4">
                 
@@ -636,7 +687,10 @@ export default function WalletDashboard({ initialAddress }: { initialAddress?: s
                     {result.txError}
                   </div>
                 ) : result.transactions && result.transactions.length > 0 ? (
-                  <div className="space-y-3 max-h-[350px] overflow-y-auto pr-2 custom-scrollbar">
+                  <div className="space-y-0 max-h-[420px] overflow-y-auto pr-2 custom-scrollbar relative mt-2">
+                    {/* Continuous vertical timeline line */}
+                    <div className="absolute top-6 bottom-6 left-[1.125rem] sm:left-[1.25rem] w-px bg-slate-200 dark:bg-slate-800 z-0"></div>
+                    
                     {result.transactions.map((tx: any, idx: number) => {
                       const knownToLabel = tx.to ? KNOWN_ADDRESSES[tx.to.toLowerCase()] : null;
                       const actionLabel = knownToLabel || (tx.type === 'IN' ? 'Received' : 'Sent');
@@ -645,37 +699,53 @@ export default function WalletDashboard({ initialAddress }: { initialAddress?: s
                       let themeColor;
                       
                       if (actionLabel === 'DEX Swap') {
-                        themeColor = 'text-purple-600 dark:text-purple-400 bg-purple-500/10 border-purple-500/20';
+                        themeColor = 'text-purple-600 dark:text-purple-400 bg-purple-500/10 border-purple-500/30';
                         iconSvg = <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg>;
                       } else if (actionLabel.includes('Contract')) {
-                        themeColor = 'text-teal-600 dark:text-teal-400 bg-teal-500/10 border-teal-500/20';
+                        themeColor = 'text-teal-600 dark:text-teal-400 bg-teal-500/10 border-teal-500/30';
                         iconSvg = <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>;
                       } else if (tx.type === 'IN') {
-                        themeColor = 'text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border-emerald-500/20';
+                        themeColor = 'text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border-emerald-500/30';
                         iconSvg = <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" /></svg>;
                       } else {
-                        themeColor = 'text-rose-600 dark:text-rose-400 bg-rose-500/10 border-rose-500/20';
+                        themeColor = 'text-rose-600 dark:text-rose-400 bg-rose-500/10 border-rose-500/30';
                         iconSvg = <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" /></svg>;
                       }
 
+                      // Format the date string nicely
+                      const txDate = tx.timestamp ? new Date(tx.timestamp) : null;
+                      const formattedDate = txDate && !isNaN(txDate.getTime()) 
+                        ? txDate.toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }) 
+                        : `Block ${tx.blockNumber}`;
+
                       return (
-                        <div key={`${tx.hash}-${idx}`} className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-3 gap-3 sm:gap-0 bg-white/50 dark:bg-slate-900/60 rounded-xl border border-slate-200 dark:border-slate-800/50 hover:bg-slate-100 dark:hover:bg-slate-800/50 transition-colors">
-                          <div className="flex items-center gap-3 w-full sm:w-auto">
-                            <div className={`flex items-center justify-center shrink-0 w-8 h-8 rounded-full border ${themeColor}`}>
+                        <div key={`${tx.hash}-${idx}`} className="group relative z-10 flex items-start gap-3 sm:gap-6 py-3 transition-all duration-300">
+                          {/* Timeline Dot */}
+                          <div className="shrink-0 relative w-9 h-9 sm:w-10 sm:h-10 mt-1 sm:mt-0.5 transition-transform duration-300 group-hover:scale-110 group-hover:shadow-[0_0_15px_-3px_rgba(99,102,241,0.4)] rounded-full">
+                            <div className="absolute inset-0 bg-white dark:bg-slate-950 rounded-full z-0"></div>
+                            <div className={`absolute inset-0 flex items-center justify-center rounded-full border-2 z-10 ${themeColor}`}>
                               {iconSvg}
                             </div>
-                            <div className="flex flex-col items-start gap-1">
-                              <span className={`text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-md border ${themeColor}`}>
-                                {actionLabel}
-                              </span>
-                              <a href={`https://etherscan.io/tx/${tx.hash}`} target="_blank" rel="noopener noreferrer" className="text-xs sm:text-sm text-indigo-600 dark:text-indigo-400/80 hover:text-indigo-800 dark:hover:text-indigo-300 transition-colors truncate max-w-[120px] sm:max-w-[200px] block py-1">
+                          </div>
+                          
+                          {/* Content Card */}
+                          <div className="flex-1 flex flex-col sm:flex-row items-start sm:items-center justify-between p-3 sm:p-4 bg-white/50 dark:bg-slate-900/60 rounded-xl border border-slate-200 dark:border-slate-800/50 group-hover:bg-white dark:group-hover:bg-slate-800/80 group-hover:border-indigo-200/60 dark:group-hover:border-indigo-500/30 group-hover:-translate-y-0.5 group-hover:shadow-md dark:group-hover:shadow-[0_4px_20px_-5px_rgba(0,0,0,0.5)] transition-all duration-300 overflow-hidden w-full">
+                            <div className="flex flex-col items-start gap-1.5 min-w-0 w-full sm:w-auto">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className={`text-[9px] sm:text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-md border ${themeColor} shrink-0`}>
+                                  {actionLabel}
+                                </span>
+                                <span className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 font-medium whitespace-nowrap">
+                                  {formattedDate}
+                                </span>
+                              </div>
+                              <a href={`https://etherscan.io/tx/${tx.hash}`} target="_blank" rel="noopener noreferrer" className="text-xs sm:text-sm font-mono text-indigo-600 dark:text-indigo-400/80 hover:text-indigo-800 dark:hover:text-indigo-300 transition-colors truncate w-full block mt-0.5">
                                 {tx.hash}
                               </a>
                             </div>
-                          </div>
-                          <div className="text-left sm:text-right shrink-0 ml-11 sm:ml-0 mt-1 sm:mt-0">
-                            <p className="text-[13px] sm:text-sm font-bold text-slate-800 dark:text-slate-200 truncate max-w-[200px] sm:max-w-[150px]">{tx.value} {tx.asset}</p>
-                            <p className="text-xs text-slate-500 mt-0.5">Block {tx.blockNumber}</p>
+                            <div className="text-left sm:text-right shrink-0 mt-2.5 sm:mt-0 w-full sm:w-auto pt-2 sm:pt-0 border-t border-slate-100 dark:border-slate-800/50 sm:border-0">
+                              <p className="text-sm sm:text-[15px] font-bold text-slate-800 dark:text-slate-200 truncate">{tx.value} <span className="text-xs sm:text-sm font-medium text-slate-500 dark:text-slate-400">{tx.asset}</span></p>
+                            </div>
                           </div>
                         </div>
                       );

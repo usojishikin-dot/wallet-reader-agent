@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { ThemeToggle } from "./ThemeToggle";
 import WalletResultView from "./WalletResultView";
 
@@ -178,7 +179,7 @@ export default function WalletDashboard({ initialAddress }: { initialAddress?: s
 
     try {
       const fetchWithTimeout = (url: string, options: any) => {
-        return fetch(url, { ...options, signal: AbortSignal.timeout(30000) });
+        return fetch(url, { ...options, signal: AbortSignal.timeout(60000) });
       };
 
       const [ethRes, tokensRes, txRes, pricesRes] = await Promise.all([
@@ -362,7 +363,7 @@ export default function WalletDashboard({ initialAddress }: { initialAddress?: s
 
       <header className="fixed top-0 left-0 right-0 z-50 w-full border-b border-slate-200/80 dark:border-slate-800/50 bg-white/50 dark:bg-slate-950/50 backdrop-blur-md">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-2.5 cursor-pointer group" onClick={() => { setIsComparisonMode(false); router.push('/'); }}>
+          <Link href="/" onClick={() => setIsComparisonMode(false)} className="flex items-center gap-2.5 group">
             <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-indigo-600 to-purple-600 p-[1px] shadow-lg shadow-indigo-500/20 group-hover:shadow-indigo-500/40 transition-shadow">
               <div className="w-full h-full rounded-[11px] bg-white dark:bg-slate-950 flex items-center justify-center relative overflow-hidden">
                 <div className="absolute inset-0 bg-gradient-to-tr from-indigo-500/10 to-purple-500/10" />
@@ -375,7 +376,7 @@ export default function WalletDashboard({ initialAddress }: { initialAddress?: s
             <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100 flex items-center">
               Wallet<span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-500 to-purple-500 ml-0.5">Reader</span>
             </h1>
-          </div>
+          </Link>
           <div className="flex items-center gap-4">
             <ThemeToggle />
           </div>
@@ -461,17 +462,23 @@ export default function WalletDashboard({ initialAddress }: { initialAddress?: s
                       </button>
                     </div>
 
-                    {activeDropdown === 1 && savedWallets.length > 0 && (
+                    {activeDropdown === 1 && (
                       <div className="absolute z-50 top-full mt-2 w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl overflow-hidden animate-in fade-in slide-in-from-top-2">
                         <div className="max-h-60 overflow-y-auto custom-scrollbar">
-                          {savedWallets.map(sw => (
-                            <div key={sw} className="flex items-center justify-between p-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer border-b border-slate-100 dark:border-slate-800/50 last:border-0 transition-colors" onClick={() => { setAddress1(sw); setActiveDropdown(null); }}>
-                              <span className="text-sm font-mono text-slate-700 dark:text-slate-300 truncate">{sw}</span>
-                              <button type="button" onClick={(e) => removeSavedWallet(sw, e)} className="p-1.5 text-slate-400 hover:text-red-500 transition-colors">
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                              </button>
+                          {savedWallets.length === 0 ? (
+                            <div className="p-4 text-center text-sm text-slate-500 dark:text-slate-400">
+                              No saved wallets
                             </div>
-                          ))}
+                          ) : (
+                            savedWallets.map(sw => (
+                              <div key={sw} className="flex items-center justify-between p-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer border-b border-slate-100 dark:border-slate-800/50 last:border-0 transition-colors" onClick={() => { setAddress1(sw); setActiveDropdown(null); }}>
+                                <span className="text-sm font-mono text-slate-700 dark:text-slate-300 truncate">{sw}</span>
+                                <button type="button" onClick={(e) => removeSavedWallet(sw, e)} className="p-1.5 text-slate-400 hover:text-red-500 transition-colors">
+                                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                </button>
+                              </div>
+                            ))
+                          )}
                         </div>
                       </div>
                     )}
@@ -527,17 +534,23 @@ export default function WalletDashboard({ initialAddress }: { initialAddress?: s
                         </button>
                       </div>
 
-                      {activeDropdown === 2 && savedWallets.length > 0 && (
+                      {activeDropdown === 2 && (
                         <div className="absolute z-50 top-full mt-2 w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl overflow-hidden animate-in fade-in slide-in-from-top-2">
                           <div className="max-h-60 overflow-y-auto custom-scrollbar">
-                            {savedWallets.map(sw => (
-                              <div key={sw} className="flex items-center justify-between p-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer border-b border-slate-100 dark:border-slate-800/50 last:border-0 transition-colors" onClick={() => { setAddress2(sw); setActiveDropdown(null); }}>
-                                <span className="text-sm font-mono text-slate-700 dark:text-slate-300 truncate">{sw}</span>
-                                <button type="button" onClick={(e) => removeSavedWallet(sw, e)} className="p-1.5 text-slate-400 hover:text-red-500 transition-colors">
-                                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                                </button>
+                            {savedWallets.length === 0 ? (
+                              <div className="p-4 text-center text-sm text-slate-500 dark:text-slate-400">
+                                No saved wallets
                               </div>
-                            ))}
+                            ) : (
+                              savedWallets.map(sw => (
+                                <div key={sw} className="flex items-center justify-between p-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer border-b border-slate-100 dark:border-slate-800/50 last:border-0 transition-colors" onClick={() => { setAddress2(sw); setActiveDropdown(null); }}>
+                                  <span className="text-sm font-mono text-slate-700 dark:text-slate-300 truncate">{sw}</span>
+                                  <button type="button" onClick={(e) => removeSavedWallet(sw, e)} className="p-1.5 text-slate-400 hover:text-red-500 transition-colors">
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                  </button>
+                                </div>
+                              ))
+                            )}
                           </div>
                         </div>
                       )}

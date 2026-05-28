@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 
 export function ThemeToggle() {
   const [mounted, setMounted] = useState(false);
-  const { theme, setTheme } = useTheme();
+  const { theme, setTheme, resolvedTheme } = useTheme();
 
   // Prevent hydration mismatch
   useEffect(() => setMounted(true), []);
@@ -14,7 +14,7 @@ export function ThemeToggle() {
     return <div className="w-10 h-10 rounded-xl bg-slate-200/50 dark:bg-slate-800/50 animate-pulse" />;
   }
 
-  const isDark = theme === "dark";
+  const isDark = resolvedTheme === "dark";
 
   return (
     <button

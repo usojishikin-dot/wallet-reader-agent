@@ -19,12 +19,57 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<any>(null);
   const [error, setError] = useState("");
+  const [aiSummary, setAiSummary] = useState<string | null>(null);
+  const [loadingSummary, setLoadingSummary] = useState(false);
+  const [copiedSummary, setCopiedSummary] = useState(false);
+
+  const handleCopySummary = () => {
+    if (aiSummary) {
+      navigator.clipboard.writeText(aiSummary);
+      setCopiedSummary(true);
+      setTimeout(() => setCopiedSummary(false), 2000);
+    }
+  };
+
+  const generateAiSummary = async (transactionsToSummarize: any[]) => {
+    if (!transactionsToSummarize || transactionsToSummarize.length === 0) {
+      setAiSummary("This wallet has absolutely no recent on-chain activity. It is a completely dormant or brand new address with zero transaction history.");
+      return;
+    }
+    
+    setLoadingSummary(true);
+    setAiSummary(null);
+    try {
+      const res = await fetch('/api/summary', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ transactions: transactionsToSummarize.slice(0, 10) })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setAiSummary(data.data.summary);
+      } else {
+        const errData = await res.json();
+        setAiSummary(`ERROR: ${errData.error || 'Failed to generate summary'}`);
+      }
+    } catch (err) {
+      setAiSummary("ERROR: Network error or AI service unavailable");
+      console.error(err);
+    } finally {
+      setLoadingSummary(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const trimmedAddress = address.trim();
-    if (!trimmedAddress) {
-      setError("Please enter a valid wallet address.");
+    
+    // Validate Ethereum address format (0x followed by 40 hex characters)
+    const isValidAddress = /^0x[a-fA-F0-9]{40}$/.test(trimmedAddress);
+    if (!isValidAddress) {
+      setError("Hmm, that doesn't look right. Please enter a valid Ethereum address (starting with 0x).");
+      setResult(null);
+      setAiSummary(null);
       return;
     }
 
@@ -42,7 +87,9 @@ export default function Home() {
       decodedLogs: [],
       logsError: "",
       address: trimmedAddress,
+      healthScore: 0,
     });
+    setAiSummary(null);
 
     try {
       // Add a 15-second timeout to prevent the page from loading forever
@@ -85,10 +132,9 @@ export default function Home() {
       if (txRes && txRes.ok) {
         txData = await txRes.json();
       } else if (txRes) {
-        const errJson = await txRes.json();
-        txData.error = errJson.error || "Failed to load transactions";
+        txData.error = "The blockchain node is currently busy or rate-limiting requests. We couldn't fetch the latest transactions.";
       } else {
-        txData.error = "Network error while fetching transactions";
+        txData.error = "Failed to load transaction history due to a network connection timeout.";
       }
 
       let decodedLogs: any[] = [];
@@ -112,6 +158,35 @@ export default function Home() {
         } catch (err) {
           logsError = "Network error while decoding logs";
         }
+
+        // Fetch AI Summary in background
+        generateAiSummary(txData.data.recentTransactions || []);
+      } else {
+        // Even if there's no data block, trigger the empty state summary
+        generateAiSummary([]);
+      }
+
+      // Calculate Wallet Health Score
+      let healthScore = 0;
+      if (txData.data?.recentTransactions) {
+        const txs = txData.data.recentTransactions;
+        const totalSent = txData.data.transactionCount || 0;
+        
+        // 1. Transaction Diversity (Max 40 points)
+        const uniqueToAddresses = new Set(txs.filter((t: any) => t.to).map((t: any) => t.to.toLowerCase())).size;
+        const diversityScore = Math.min(uniqueToAddresses * 10, 40);
+
+        // 2. Token Diversity (Max 30 points)
+        const uniqueTokens = new Set(txs.map((t: any) => t.asset)).size;
+        const tokenScore = Math.min(uniqueTokens * 10, 30);
+
+        // 3. Activity Level (Max 30 points)
+        let activityScore = 5;
+        if (totalSent > 100) activityScore = 30;
+        else if (totalSent > 50) activityScore = 20;
+        else if (totalSent > 10) activityScore = 10;
+
+        healthScore = diversityScore + tokenScore + activityScore;
       }
 
       setResult({
@@ -122,37 +197,62 @@ export default function Home() {
         txError: txData.error,
         decodedLogs,
         logsError,
+        healthScore,
       });
     } catch (err: any) {
       if (err.name === 'AbortError' || err.message.includes('aborted')) {
-        setError("Connection timed out. Your RPC node may be rate-limiting or blocking requests.");
+        setError("Connection timed out. The blockchain node took too long to respond. Please try again.");
       } else {
-        setError(err.message);
+        setError("Unable to connect to the blockchain network. Please verify your connection and try again.");
       }
       setResult(null);
+      setAiSummary(null);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-50 selection:bg-indigo-500/30 flex flex-col items-center justify-center p-4 sm:p-8 font-sans">
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-1/2 -left-1/2 w-[200%] h-[200%] bg-[radial-gradient(ellipse_at_center,rgba(99,102,241,0.15)_0%,rgba(0,0,0,0)_50%)]" />
+    <div className="min-h-screen flex flex-col relative overflow-hidden bg-slate-950 font-sans">
+      {/* Global Background Glow */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
+        <div className="absolute -top-[30%] -left-[10%] w-[120%] h-[120%] bg-[radial-gradient(ellipse_at_center,rgba(99,102,241,0.15)_0%,rgba(0,0,0,0)_50%)]" />
       </div>
 
-      <main className="relative z-10 w-full max-w-7xl mx-auto">
-        <div className="text-center mb-10">
-          <h1 className="text-4xl md:text-6xl font-extrabold tracking-tight mb-4 bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400">
-            Wallet Reader
-          </h1>
-          <p className="text-lg text-slate-400 max-w-md mx-auto">
-            Enter your wallet address to unlock detailed insights and analytics instantly.
-          </p>
+      {/* Header */}
+      <header className="relative z-20 w-full border-b border-slate-800/50 bg-slate-950/50 backdrop-blur-md">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-indigo-500/20 border border-indigo-500/50 flex items-center justify-center">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-indigo-400" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M10 2a4 4 0 00-4 4v1H5a1 1 0 00-.994.89l-1 9A1 1 0 004 18h12a1 1 0 00.994-1.11l-1-9A1 1 0 0015 7h-1V6a4 4 0 00-4-4zm2 5V6a2 2 0 10-4 0v1h4zm-6 3a1 1 0 112 0 1 1 0 01-2 0zm7-1a1 1 0 100 2 1 1 0 000-2z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <h1 className="text-xl font-bold tracking-tight text-slate-100">Wallet <span className="text-indigo-400">Reader</span></h1>
+          </div>
+          <div className="flex items-center gap-4">
+            <a href="https://github.com/usojishikin-dot/wallet-reader-agent" target="_blank" rel="noreferrer" className="text-slate-400 hover:text-slate-200 transition-colors">
+              <svg fill="currentColor" viewBox="0 0 24 24" className="w-6 h-6"><path fillRule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" clipRule="evenodd"></path></svg>
+            </a>
+          </div>
         </div>
+      </header>
 
-        {/* Input Section */}
-        <div className="bg-slate-900/50 backdrop-blur-xl border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-2xl relative max-w-2xl mx-auto">
+      {/* Main Content */}
+      <main className="relative z-10 flex-grow w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 flex flex-col">
+        
+        {/* Dynamic Hero Search Section */}
+        <div className={`transition-all duration-700 ease-in-out w-full max-w-3xl mx-auto ${result ? 'mb-12 mt-4' : 'flex-grow flex flex-col justify-center pb-20'}`}>
+          <div className="text-center mb-8">
+            <h2 className="text-4xl md:text-5xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 via-purple-400 to-indigo-400 tracking-tight mb-4">
+              Decode Any Wallet
+            </h2>
+            <p className="text-lg text-slate-400 max-w-xl mx-auto">
+              Drop in an Ethereum address to instantly analyze its balances, tokens, and AI-driven behavior patterns.
+            </p>
+          </div>
+
+          <div className="bg-slate-900/50 backdrop-blur-xl border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-2xl relative w-full">
           
           {loading && (
              <div className="absolute inset-0 bg-slate-900/10 backdrop-blur-[2px] rounded-3xl z-20 pointer-events-none transition-all duration-300" />
@@ -212,6 +312,7 @@ export default function Home() {
             </div>
           )}
         </div>
+        </div>
 
         {/* Results Section */}
         {result && (
@@ -226,7 +327,7 @@ export default function Home() {
               </h3>
               
               {/* Full Width Horizontal Grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4">
+              <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
                 
                 {/* Status */}
                 <div className="p-4 bg-slate-900/80 rounded-xl border border-slate-800/50 transition-colors duration-300 flex flex-col justify-center">
@@ -269,10 +370,97 @@ export default function Home() {
                 {/* Address */}
                 <div className="p-4 bg-slate-900/80 rounded-xl border border-slate-800/50 transition-colors duration-300 flex flex-col justify-center">
                   <p className="text-xs text-slate-500 uppercase tracking-wider mb-2">Address</p>
-                  <p className="text-sm text-slate-300 font-mono break-all" title={result.address}>{result.address}</p>
+                  <p className="text-sm text-slate-300 font-mono break-all truncate" title={result.address}>{result.address}</p>
+                </div>
+                
+                {/* Wallet Health Score */}
+                <div 
+                  className="p-4 bg-slate-900/80 rounded-xl border border-slate-800/50 transition-colors duration-300 flex flex-col justify-center cursor-help"
+                  title="Score breakdown: Transaction diversity (40%), Token diversity (30%), and total network activity (30%)."
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-xs text-slate-500 uppercase tracking-wider border-b border-dashed border-slate-600 pb-0.5">Health Score</p>
+                    <span className={`text-xs font-bold ${
+                      result.healthScore >= 70 ? 'text-emerald-400' : 
+                      result.healthScore >= 30 ? 'text-amber-400' : 'text-rose-400'
+                    }`}>
+                      {loading ? '-' : `${result.healthScore}/100`}
+                    </span>
+                  </div>
+                  <div className="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden mt-1 relative">
+                    <div 
+                      className={`absolute top-0 left-0 h-full transition-all duration-1000 ease-out shadow-[0_0_10px_rgba(0,0,0,0.5)] ${
+                        result.healthScore >= 70 ? 'bg-emerald-400 shadow-emerald-400/50' : 
+                        result.healthScore >= 30 ? 'bg-amber-400 shadow-amber-400/50' : 'bg-rose-400 shadow-rose-400/50'
+                      }`}
+                      style={{ width: loading ? '0%' : `${result.healthScore}%` }}
+                    />
+                  </div>
                 </div>
                 
               </div>
+
+              {/* AI Summary Section */}
+              {(loadingSummary || aiSummary) && (
+                <div className="mt-6 p-6 bg-gradient-to-r from-indigo-500/10 via-purple-500/5 to-transparent rounded-2xl border border-indigo-500/20 relative overflow-hidden shadow-[0_0_30px_-15px_rgba(99,102,241,0.3)]">
+                  <div className="absolute top-0 right-0 p-4 opacity-5">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-32 w-32" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+                  </div>
+                  <div className="flex items-center justify-between mb-4 relative z-10">
+                    <div className="flex items-center gap-2">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-indigo-400" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clipRule="evenodd" />
+                      </svg>
+                      <h3 className="text-sm font-bold text-indigo-300 uppercase tracking-widest">AI Wallet Insights</h3>
+                    </div>
+                    
+                    <div className="flex items-center gap-2">
+                      {aiSummary && !aiSummary.startsWith('ERROR:') && !loadingSummary && (
+                        <button 
+                          onClick={handleCopySummary}
+                          className="text-xs bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors border border-indigo-500/30"
+                        >
+                          {copiedSummary ? (
+                            <>
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 text-emerald-400" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>
+                              Copied!
+                            </>
+                          ) : (
+                            <>
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+                              Copy
+                            </>
+                          )}
+                        </button>
+                      )}
+                      <button 
+                        onClick={() => generateAiSummary(result?.transactions || [])}
+                        disabled={loadingSummary}
+                        className="text-xs bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed border border-indigo-500/30"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" className={`h-3.5 w-3.5 ${loadingSummary ? 'animate-spin' : ''}`} viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clipRule="evenodd" />
+                        </svg>
+                        Regenerate
+                      </button>
+                    </div>
+                  </div>
+
+                  {loadingSummary ? (
+                    <div className="space-y-3 animate-pulse relative z-10 pt-2">
+                      <div className="h-4 bg-indigo-500/20 rounded w-full"></div>
+                      <div className="h-4 bg-indigo-500/20 rounded w-5/6"></div>
+                      <div className="h-4 bg-indigo-500/20 rounded w-2/3"></div>
+                    </div>
+                  ) : (
+                    <div className="relative z-10 p-4 bg-slate-900/40 rounded-xl border border-indigo-500/10 backdrop-blur-sm">
+                      <p className={`text-[15px] leading-relaxed whitespace-pre-wrap font-medium ${aiSummary?.startsWith('ERROR:') ? 'text-rose-400' : 'text-slate-200'}`}>
+                        {aiSummary}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Transactions Section */}
               <div className="mt-6 pt-6 border-t border-slate-800/50">
@@ -340,9 +528,10 @@ export default function Home() {
                     })}
                   </div>
                 ) : (
-                  <div className="p-8 text-center bg-slate-900/40 rounded-xl border border-slate-800/50 border-dashed">
-                    <p className="text-slate-400 text-sm">No transactions</p>
-                    <p className="text-slate-500 text-xs mt-1">(powered by Alchemy Indexer)</p>
+                  <div className="p-8 bg-slate-900/40 rounded-xl border border-dashed border-slate-800/50 text-center flex flex-col items-center justify-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-slate-600 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M20 12H4M8 16l-4-4 4-4" /></svg>
+                    <p className="text-slate-400 text-sm font-medium">This wallet has no recorded transaction history.</p>
+                    <p className="text-slate-500 text-xs mt-1 italic">The address is completely dormant.</p>
                   </div>
                 )}
               </div>
@@ -426,6 +615,13 @@ export default function Home() {
           </div>
         )}
       </main>
+
+      {/* Footer */}
+      <footer className="relative z-20 border-t border-slate-800/50 bg-slate-950/80 py-8 mt-auto">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-center">
+          <p className="text-sm text-slate-500">© 2026 Wallet Reader. All rights reserved.</p>
+        </div>
+      </footer>
     </div>
   );
 }

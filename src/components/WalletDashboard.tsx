@@ -3,69 +3,65 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { ThemeToggle } from "./ThemeToggle";
-
-
-const KNOWN_ADDRESSES: Record<string, string> = {
-  "0x7a250d5630b4cf539739df2c5dacb4c659f2488d": "DEX Swap", // Uniswap V2 Router
-  "0x68b3465833fb72a70ecdf485e0e4c7bd8665fc45": "DEX Swap", // Uniswap V3 Router
-  "0xe592427a0aece92de3edee1f18e0157c05861564": "DEX Swap", // Uniswap V3 Router
-  "0xdef1c0ded9bec7f1a1670819833240f027b25eff": "DEX Swap", // 0x Exchange Proxy
-  "0x1111111254fb6c44bac0bed2854e76f90643097d": "DEX Swap", // 1inch Router
-  "0xdac17f958d2ee523a2206206994597c13d831ec7": "USDT Contract", // Tether
-  "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48": "USDC Contract", // USDC
-};
+import WalletResultView from "./WalletResultView";
 
 export default function WalletDashboard({ initialAddress }: { initialAddress?: string }) {
   const router = useRouter();
-  const [address, setAddress] = useState(initialAddress || "");
-  const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<any>(null);
-  const [error, setError] = useState("");
-  const [aiSummary, setAiSummary] = useState<string | null>(null);
-  const [loadingSummary, setLoadingSummary] = useState(false);
-  const [copiedSummary, setCopiedSummary] = useState(false);
+  
+  // App Mode
+  const [isComparisonMode, setIsComparisonMode] = useState(false);
+  
+  // Wallet 1 State (Primary)
+  const [address1, setAddress1] = useState(initialAddress || "");
+  const [wallet1Data, setWallet1Data] = useState<any>({
+    result: null,
+    loading: false,
+    error: "",
+    aiSummary: null,
+    loadingSummary: false
+  });
+
+  // Wallet 2 State (Comparison)
+  const [address2, setAddress2] = useState("");
+  const [wallet2Data, setWallet2Data] = useState<any>({
+    result: null,
+    loading: false,
+    error: "",
+    aiSummary: null,
+    loadingSummary: false
+  });
 
   useEffect(() => {
     if (initialAddress) {
       const decodedAddress = decodeURIComponent(initialAddress);
-      setAddress(decodedAddress);
-      performAnalysis(decodedAddress);
+      setAddress1(decodedAddress);
+      performAnalysis(decodedAddress, 1);
     } else {
-      // Clear state if returning to home
-      setResult(null);
-      setAiSummary(null);
-      setError("");
-      setAddress("");
+      resetWallet(1);
+      resetWallet(2);
+      setAddress1("");
+      setAddress2("");
     }
   }, [initialAddress]);
 
-  const handleCopySummary = () => {
-    if (aiSummary) {
-      navigator.clipboard.writeText(aiSummary);
-      setCopiedSummary(true);
-      setTimeout(() => setCopiedSummary(false), 2000);
-    }
+  const resetWallet = (walletIndex: number) => {
+    const defaultState = { result: null, loading: false, error: "", aiSummary: null, loadingSummary: false };
+    if (walletIndex === 1) setWallet1Data(defaultState);
+    else setWallet2Data(defaultState);
+  };
+  
+  const updateWalletData = (walletIndex: number, updates: any) => {
+    if (walletIndex === 1) setWallet1Data((prev: any) => ({ ...prev, ...updates }));
+    else setWallet2Data((prev: any) => ({ ...prev, ...updates }));
   };
 
-  const formatCompact = (valStr: string) => {
-    if (!valStr || valStr === "0.00" || valStr === "0" || valStr === "Error") return valStr;
-    const cleanStr = valStr.replace(/,/g, '');
-    const num = parseFloat(cleanStr);
-    if (isNaN(num)) return valStr;
-    if (num >= 100000) {
-      return Intl.NumberFormat('en-US', { notation: "compact", maximumFractionDigits: 2 }).format(num);
-    }
-    return valStr;
-  };
-
-  const generateAiSummary = async (transactionsToSummarize: any[]) => {
+  const generateAiSummary = async (transactionsToSummarize: any[], walletIndex: number) => {
     if (!transactionsToSummarize || transactionsToSummarize.length === 0) {
-      setAiSummary("This wallet has absolutely no recent on-chain activity. It is a completely dormant or brand new address with zero transaction history.");
+      updateWalletData(walletIndex, { aiSummary: "This wallet has absolutely no recent on-chain activity. It is a completely dormant or brand new address with zero transaction history." });
       return;
     }
     
-    setLoadingSummary(true);
-    setAiSummary(null);
+    updateWalletData(walletIndex, { loadingSummary: true, aiSummary: null });
     try {
       const res = await fetch('/api/summary', {
         method: 'POST',
@@ -74,101 +70,81 @@ export default function WalletDashboard({ initialAddress }: { initialAddress?: s
       });
       if (res.ok) {
         const data = await res.json();
-        setAiSummary(data.data.summary);
+        updateWalletData(walletIndex, { aiSummary: data.data.summary });
       } else {
         const errData = await res.json();
-        setAiSummary(`ERROR: ${errData.error || 'Failed to generate summary'}`);
+        updateWalletData(walletIndex, { aiSummary: `ERROR: ${errData.error || 'Failed to generate summary'}` });
       }
     } catch (err) {
-      setAiSummary("ERROR: Network error or AI service unavailable");
+      updateWalletData(walletIndex, { aiSummary: "ERROR: Network error or AI service unavailable" });
     } finally {
-      setLoadingSummary(false);
+      updateWalletData(walletIndex, { loadingSummary: false });
     }
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const trimmedAddress = address.trim();
+    const addr1 = address1.trim();
+    const addr2 = address2.trim();
     
-    const isValidAddress = /^0x[a-fA-F0-9]{40}$/.test(trimmedAddress);
-    if (!isValidAddress) {
-      setError("Hmm, that doesn't look right. Please enter a valid Ethereum address (starting with 0x).");
-      setResult(null);
-      setAiSummary(null);
+    const isValid1 = /^0x[a-fA-F0-9]{40}$/.test(addr1);
+    
+    if (!isValid1) {
+      updateWalletData(1, { error: "Please enter a valid Ethereum address.", result: null, aiSummary: null });
       return;
     }
 
-    // Use router to update the URL
-    router.push(`/wallet/${encodeURIComponent(trimmedAddress)}`);
+    if (isComparisonMode) {
+      const isValid2 = /^0x[a-fA-F0-9]{40}$/.test(addr2);
+      if (!isValid2) {
+        updateWalletData(2, { error: "Please enter a valid Ethereum address.", result: null, aiSummary: null });
+        return;
+      }
+      // Trigger both in place instead of routing
+      performAnalysis(addr1, 1);
+      performAnalysis(addr2, 2);
+    } else {
+      // Use router for single mode to maintain URL
+      router.push(`/wallet/${encodeURIComponent(addr1)}`);
+    }
   };
 
-  const performAnalysis = async (targetAddress: string) => {
+  const performAnalysis = async (targetAddress: string, walletIndex: number) => {
     const trimmedAddress = targetAddress.trim();
-    
     const isValidAddress = /^0x[a-fA-F0-9]{40}$/.test(trimmedAddress);
+    
     if (!isValidAddress) {
-      setError("Hmm, that doesn't look right. Please enter a valid Ethereum address (starting with 0x).");
-      setResult(null);
-      setAiSummary(null);
+      updateWalletData(walletIndex, { error: "Please enter a valid Ethereum address.", result: null, aiSummary: null });
       return;
     }
 
-    setLoading(true);
-    setError("");
-    setResult({
-      status: "Fetching...",
-      network: "Ethereum",
-      balance: "0.00",
-      usdcBalance: "0.00",
-      daiBalance: "0.00",
-      wethBalance: "0.00",
-      pepeBalance: "0.00",
-      transactions: [],
-      transactionCount: 0,
-      txError: "",
-      decodedLogs: [],
-      logsError: "",
-      address: trimmedAddress,
-      healthScore: 0,
-      concentratedRiskToken: null,
+    updateWalletData(walletIndex, {
+      loading: true,
+      error: "",
+      aiSummary: null,
+      result: {
+        status: "Fetching...", network: "Ethereum", balance: "0.00", usdcBalance: "0.00", daiBalance: "0.00",
+        wethBalance: "0.00", pepeBalance: "0.00", transactions: [], transactionCount: 0, txError: "",
+        decodedLogs: [], logsError: "", address: trimmedAddress, healthScore: 0, concentratedRiskToken: null,
+      }
     });
-    setAiSummary(null);
 
     try {
       const fetchWithTimeout = (url: string, options: any) => {
-        return fetch(url, {
-          ...options,
-          signal: AbortSignal.timeout(30000)
-        });
+        return fetch(url, { ...options, signal: AbortSignal.timeout(30000) });
       };
 
       const [ethRes, tokensRes, txRes] = await Promise.all([
-        fetchWithTimeout("/api/balance", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ address: trimmedAddress }),
-        }).catch(() => null),
-        fetchWithTimeout("/api/tokens", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ address: trimmedAddress }),
-        }).catch(() => null),
-        fetchWithTimeout("/api/transactions", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ address: trimmedAddress }),
-        }).catch(() => null)
+        fetchWithTimeout("/api/balance", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ address: trimmedAddress }) }).catch(() => null),
+        fetchWithTimeout("/api/tokens", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ address: trimmedAddress }) }).catch(() => null),
+        fetchWithTimeout("/api/transactions", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ address: trimmedAddress }) }).catch(() => null)
       ]);
 
       let ethData = { data: { balance: "Error", network: "Ethereum", status: "Failed" } };
-      if (ethRes && ethRes.ok) {
-        ethData = await ethRes.json();
-      }
+      if (ethRes && ethRes.ok) ethData = await ethRes.json();
 
       let tokenData = { data: { balances: { USDC: "Error", DAI: "Error", WETH: "Error", PEPE: "Error" } } };
-      if (tokensRes && tokensRes.ok) {
-        tokenData = await tokensRes.json();
-      }
+      if (tokensRes && tokensRes.ok) tokenData = await tokensRes.json();
 
       let txData = { data: { recentTransactions: [], transactionCount: 0 }, error: "" };
       if (txRes && txRes.ok) {
@@ -199,10 +175,9 @@ export default function WalletDashboard({ initialAddress }: { initialAddress?: s
         } catch (err) {
           logsError = "Network error while decoding logs";
         }
-
-        generateAiSummary(txData.data.recentTransactions || []);
+        generateAiSummary(txData.data.recentTransactions || [], walletIndex);
       } else {
-        generateAiSummary([]);
+        generateAiSummary([], walletIndex);
       }
 
       let healthScore = 0;
@@ -224,7 +199,6 @@ export default function WalletDashboard({ initialAddress }: { initialAddress?: s
         healthScore = diversityScore + tokenScore + activityScore;
       }
 
-      // Calculate concentration risk based on heuristic USD values
       const rawEth = parseFloat(ethData.data?.balance?.replace(/,/g, '') || "0");
       const rawUsdc = parseFloat(tokenData.data?.balances?.USDC?.replace(/,/g, '') || "0");
       const rawDai = parseFloat(tokenData.data?.balances?.DAI?.replace(/,/g, '') || "0");
@@ -246,68 +220,36 @@ export default function WalletDashboard({ initialAddress }: { initialAddress?: s
         healthScore = Math.max(0, healthScore - 20);
       }
 
-      setResult({
-        ...ethData.data,
-        usdcBalance: tokenData.data.balances.USDC || "0",
-        daiBalance: tokenData.data.balances.DAI || "0",
-        wethBalance: tokenData.data.balances.WETH || "0",
-        pepeBalance: tokenData.data.balances.PEPE || "0",
-        transactions: txData.data?.recentTransactions || [],
-        transactionCount: txData.data?.transactionCount || 0,
-        txError: txData.error,
-        decodedLogs,
-        logsError,
-        healthScore,
-        concentratedRiskToken,
+      updateWalletData(walletIndex, {
+        result: {
+          ...ethData.data,
+          usdcBalance: tokenData.data.balances.USDC || "0",
+          daiBalance: tokenData.data.balances.DAI || "0",
+          wethBalance: tokenData.data.balances.WETH || "0",
+          pepeBalance: tokenData.data.balances.PEPE || "0",
+          transactions: txData.data?.recentTransactions || [],
+          transactionCount: txData.data?.transactionCount || 0,
+          txError: txData.error,
+          decodedLogs,
+          logsError,
+          healthScore,
+          concentratedRiskToken,
+        }
       });
     } catch (err: any) {
       if (err.name === 'AbortError' || err.message.includes('aborted')) {
-        setError("Connection timed out. The blockchain node took too long to respond. Please try again.");
+        updateWalletData(walletIndex, { error: "Connection timed out. The blockchain node took too long to respond." });
       } else {
-        setError("Unable to connect to the blockchain network. Please verify your connection and try again.");
+        updateWalletData(walletIndex, { error: "Unable to connect to the blockchain network." });
       }
-      setResult(null);
-      setAiSummary(null);
+      updateWalletData(walletIndex, { result: null, aiSummary: null });
     } finally {
-      setLoading(false);
+      updateWalletData(walletIndex, { loading: false });
     }
   };
 
-  const handleExportJSON = () => {
-    if (!result) return;
-    const dataStr = JSON.stringify(result, null, 2);
-    const blob = new Blob([dataStr], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const downloadAnchorNode = document.createElement('a');
-    downloadAnchorNode.setAttribute("href", url);
-    downloadAnchorNode.setAttribute("download", `wallet_${result.address}_data.json`);
-    document.body.appendChild(downloadAnchorNode);
-    downloadAnchorNode.click();
-    document.body.removeChild(downloadAnchorNode);
-    URL.revokeObjectURL(url);
-  };
-
-  const handleExportCSV = () => {
-    if (!result || !result.transactions) return;
-    const headers = ["Hash", "From", "To", "Value", "Asset", "Block", "Date", "Type"];
-    const csvContent = [
-      headers.map(h => `"${h}"`).join(","),
-      ...result.transactions.map((tx: any) => {
-        const date = tx.timestamp ? new Date(tx.timestamp).toISOString() : `Block ${tx.blockNumber}`;
-        return `"${tx.hash}","${tx.from}","${tx.to || ''}","${tx.value}","${tx.asset}","${tx.blockNumber}","${date}","${tx.type}"`;
-      })
-    ].join("\n");
-    
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const downloadAnchorNode = document.createElement('a');
-    downloadAnchorNode.setAttribute("href", url);
-    downloadAnchorNode.setAttribute("download", `wallet_${result.address}_transactions.csv`);
-    document.body.appendChild(downloadAnchorNode);
-    downloadAnchorNode.click();
-    document.body.removeChild(downloadAnchorNode);
-    URL.revokeObjectURL(url);
-  };
+  const isAnyLoading = wallet1Data.loading || wallet2Data.loading;
+  const showResults = wallet1Data.result || wallet2Data.result;
 
   return (
     <div className="min-h-screen flex flex-col relative overflow-hidden bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-50 font-sans transition-colors duration-500">
@@ -315,8 +257,7 @@ export default function WalletDashboard({ initialAddress }: { initialAddress?: s
         <div className="absolute -top-[30%] -left-[10%] w-[120%] h-[120%] bg-[radial-gradient(ellipse_at_center,rgba(99,102,241,0.15)_0%,rgba(0,0,0,0)_50%)]" />
       </div>
 
-      {/* Floating Premium Loading Pill */}
-      <div className={`fixed top-24 left-1/2 -translate-x-1/2 z-[60] transition-all duration-500 ${loading ? 'opacity-100 translate-y-0 scale-100' : 'opacity-0 -translate-y-8 scale-95 pointer-events-none'}`}>
+      <div className={`fixed top-24 left-1/2 -translate-x-1/2 z-[60] transition-all duration-500 ${isAnyLoading ? 'opacity-100 translate-y-0 scale-100' : 'opacity-0 -translate-y-8 scale-95 pointer-events-none'}`}>
         <div className="bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl border border-indigo-500/30 shadow-[0_10px_40px_-10px_rgba(99,102,241,0.5)] rounded-full px-5 py-2.5 flex items-center gap-3">
           <div className="relative flex items-center justify-center w-5 h-5">
             <div className="absolute inset-0 border-2 border-indigo-500/20 rounded-full"></div>
@@ -330,9 +271,9 @@ export default function WalletDashboard({ initialAddress }: { initialAddress?: s
 
       <header className="fixed top-0 left-0 right-0 z-50 w-full border-b border-slate-200/80 dark:border-slate-800/50 bg-white/50 dark:bg-slate-950/50 backdrop-blur-md">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-2 cursor-pointer" onClick={() => router.push('/')}>
+          <div className="flex items-center gap-2 cursor-pointer" onClick={() => { setIsComparisonMode(false); router.push('/'); }}>
             <div className="w-8 h-8 rounded-lg bg-indigo-500/20 border border-indigo-500/50 flex items-center justify-center">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-indigo-600 dark:text-indigo-600 dark:text-indigo-400" viewBox="0 0 20 20" fill="currentColor">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-indigo-600 dark:text-indigo-400" viewBox="0 0 20 20" fill="currentColor">
                 <path fillRule="evenodd" d="M10 2a4 4 0 00-4 4v1H5a1 1 0 00-.994.89l-1 9A1 1 0 004 18h12a1 1 0 00.994-1.11l-1-9A1 1 0 0015 7h-1V6a4 4 0 00-4-4zm2 5V6a2 2 0 10-4 0v1h4zm-6 3a1 1 0 112 0 1 1 0 01-2 0zm7-1a1 1 0 100 2 1 1 0 000-2z" clipRule="evenodd" />
               </svg>
             </div>
@@ -344,498 +285,150 @@ export default function WalletDashboard({ initialAddress }: { initialAddress?: s
         </div>
       </header>
 
-      <main className="relative z-10 flex-grow w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-10 pt-28 flex flex-col">
+      <main className="relative z-10 flex-grow w-full max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 pb-10 pt-28 flex flex-col">
         
-        <div className={`transition-all duration-700 ease-in-out w-full max-w-3xl mx-auto ${result ? 'mb-12 mt-4' : 'flex-grow flex flex-col justify-center pb-20'}`}>
+        <div className={`transition-all duration-700 ease-in-out w-full mx-auto ${showResults ? 'mb-12 mt-4 max-w-4xl' : 'flex-grow flex flex-col justify-center pb-20 max-w-3xl'}`}>
           <div className="text-center mb-8">
             <h2 className="text-3xl sm:text-4xl md:text-5xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-600 dark:from-indigo-400 dark:via-purple-400 dark:to-indigo-400 tracking-tight mb-4">
               Decode Any Wallet
             </h2>
-            <p className="text-base sm:text-lg text-slate-600 dark:text-slate-400 max-w-xl mx-auto px-2">
+            <p className="text-base sm:text-lg text-slate-600 dark:text-slate-400 max-w-xl mx-auto px-2 mb-8">
               Drop in an Ethereum address to instantly analyze its balances, tokens, and AI-driven behavior patterns.
             </p>
+
+            <div className="flex items-center justify-center gap-4 mb-8">
+              <button 
+                type="button"
+                onClick={() => {
+                  setIsComparisonMode(false);
+                  if (wallet2Data.result) resetWallet(2);
+                }}
+                className={`px-4 py-2 rounded-full text-sm font-semibold transition-all duration-300 ${!isComparisonMode ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/30' : 'bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-300 dark:hover:bg-slate-700'}`}
+              >
+                Single Wallet
+              </button>
+              <button 
+                type="button"
+                onClick={() => setIsComparisonMode(true)}
+                className={`px-4 py-2 rounded-full text-sm font-semibold transition-all duration-300 ${isComparisonMode ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/30' : 'bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-300 dark:hover:bg-slate-700'}`}
+              >
+                Compare Wallets
+              </button>
+            </div>
           </div>
 
           <div className="bg-white/70 dark:bg-slate-900/50 backdrop-blur-xl border border-slate-200/80 dark:border-slate-800 rounded-3xl p-6 sm:p-8 shadow-xl dark:shadow-2xl relative w-full">
-          
-          {loading && (
-             <div className="absolute inset-0 bg-white/30 dark:bg-slate-900/10 backdrop-blur-[2px] rounded-3xl z-20 pointer-events-none transition-all duration-300" />
-          )}
+            {isAnyLoading && (
+               <div className="absolute inset-0 bg-white/30 dark:bg-slate-900/10 backdrop-blur-[2px] rounded-3xl z-20 pointer-events-none transition-all duration-300" />
+            )}
 
-          <form onSubmit={handleSubmit} className="space-y-6 relative z-30">
-            <div className="space-y-2">
-              <label htmlFor="address" className="block text-sm font-medium text-slate-700 dark:text-slate-300 ml-1">
-                Wallet Address
-              </label>
-              <div className="relative group">
-                <input
-                  id="address"
-                  type="text"
-                  value={address}
-                  onChange={(e) => {
-                    setAddress(e.target.value);
-                    if (error) setError("");
-                  }}
-                  placeholder="0x..."
-                  className="w-full bg-slate-100/50 dark:bg-slate-950/50 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 text-base sm:text-lg rounded-2xl px-4 sm:px-5 py-3 sm:py-4 outline-none transition-all duration-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 group-hover:border-slate-300 dark:group-hover:border-slate-600"
-                />
-                <div className="absolute inset-0 -z-10 rounded-2xl bg-gradient-to-r from-indigo-500 to-purple-500 opacity-0 blur transition-opacity duration-500 group-focus-within:opacity-20" />
-              </div>
-            </div>
-
-            <button
-              type="submit"
-              disabled={loading || !address.trim()}
-              className="w-full relative overflow-hidden group bg-slate-900 hover:bg-slate-800 dark:bg-slate-100 dark:hover:bg-white text-white dark:text-slate-900 font-semibold text-lg rounded-2xl px-5 py-4 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <span className="relative z-10 flex items-center justify-center gap-2">
-                {loading ? (
-                  <>
-                    <svg className="animate-spin -ml-1 mr-2 h-5 w-5 text-white dark:text-slate-900" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                    Processing...
-                  </>
-                ) : (
-                  "Analyze Wallet"
-                )}
-              </span>
-              <div className="absolute inset-0 h-full w-full bg-gradient-to-r from-indigo-100 to-purple-100 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-            </button>
-          </form>
-
-          {error && (
-            <div className="mt-6 p-4 bg-red-500/10 border border-red-500/20 rounded-2xl text-red-400 text-sm animate-in fade-in slide-in-from-top-2 duration-300 relative z-30">
-              <p className="flex items-center gap-2">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 shrink-0" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                </svg>
-                {error}
-              </p>
-            </div>
-          )}
-        </div>
-        </div>
-
-        {/* Results Section */}
-        {result && (
-          <div className="mt-12 p-4 sm:p-6 md:p-8 bg-white/70 dark:bg-slate-900/50 backdrop-blur-xl border border-slate-200/80 dark:border-slate-800 rounded-2xl sm:rounded-3xl shadow-xl dark:shadow-2xl animate-in fade-in slide-in-from-bottom-4 duration-500 relative z-30 w-full">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 sm:mb-8">
-              <h3 className="text-lg sm:text-xl font-semibold text-slate-900 dark:text-slate-200 flex items-center gap-3">
-                {loading ? (
-                  <div className="w-4 h-4 rounded-full border-2 border-slate-300 dark:border-slate-600 border-t-indigo-500 animate-spin" />
-                ) : (
-                  <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                )}
-                {loading ? "Analyzing..." : "Wallet Analysis Complete"}
-              </h3>
-              
-              {!loading && result && (
-                <div className="flex items-center gap-2 self-end sm:self-auto">
-                  <button onClick={handleExportCSV} className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 hover:text-slate-900 dark:hover:text-white transition-colors flex items-center gap-1.5 border border-slate-200 dark:border-slate-700">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-                    CSV
-                  </button>
-                  <button onClick={handleExportJSON} className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-500/20 hover:text-indigo-700 dark:hover:text-indigo-300 transition-colors flex items-center gap-1.5 border border-indigo-200 dark:border-indigo-500/30">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-                    JSON
-                  </button>
-                </div>
-              )}
-            </div>
-              
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4">
-                
-                <div className="p-4 bg-slate-50/80 dark:bg-slate-900/80 rounded-xl border border-slate-200/80 dark:border-slate-800/50 transition-colors duration-300 flex flex-col justify-center">
-                  <p className="text-xs text-slate-500 uppercase tracking-wider mb-2">Status</p>
-                  {loading ? <div className="h-6 w-20 bg-slate-200 dark:bg-slate-800 animate-pulse rounded" /> : <p className="font-medium text-lg text-emerald-600 dark:text-emerald-400">{result.status}</p>}
-                </div>
-                
-                <div className="p-4 bg-slate-50/80 dark:bg-slate-900/80 rounded-xl border border-slate-200/80 dark:border-slate-800/50 transition-colors duration-300 flex flex-col justify-center">
-                  <p className="text-xs text-slate-500 uppercase tracking-wider mb-2">Network</p>
-                  {loading ? <div className="h-6 w-24 bg-slate-200 dark:bg-slate-800 animate-pulse rounded" /> : <p className="text-slate-800 dark:text-slate-200 font-medium text-lg">{result.network}</p>}
-                </div>
-                
-                <div className="p-4 bg-slate-50/80 dark:bg-slate-900/80 rounded-xl border border-slate-200/80 dark:border-slate-800/50 transition-colors duration-300 flex flex-col justify-center overflow-hidden">
-                  <p className="text-xs text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1.5"><img src="https://cryptologos.cc/logos/ethereum-eth-logo.svg" className="w-3.5 h-3.5 object-contain" alt="ETH" /> ETH Balance</p>
-                  {loading ? (
-                    <div className="h-7 w-20 bg-slate-200 dark:bg-slate-800 animate-pulse rounded" />
-                  ) : (
-                    <div className="flex items-baseline gap-1 overflow-hidden">
-                      <p className="text-xl font-bold truncate text-transparent bg-clip-text bg-gradient-to-r from-emerald-600 to-teal-600 dark:from-emerald-400 dark:to-teal-400" title={result.balance}>
-                        {formatCompact(result.balance)}
-                      </p>
-                      <span className="text-xs font-medium text-emerald-600/90 dark:text-emerald-400/70 shrink-0">
-                        ETH
-                      </span>
-                    </div>
-                  )}
-                </div>
-
-                <div className="p-4 bg-slate-50/80 dark:bg-slate-900/80 rounded-xl border border-slate-200/80 dark:border-slate-800/50 transition-colors duration-300 flex flex-col justify-center overflow-hidden">
-                  <p className="text-xs text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1.5"><img src="https://cryptologos.cc/logos/usd-coin-usdc-logo.svg" className="w-3.5 h-3.5 object-contain" alt="USDC" /> USDC Balance</p>
-                  {loading ? (
-                    <div className="h-7 w-20 bg-slate-200 dark:bg-slate-800 animate-pulse rounded" />
-                  ) : (
-                    <div className="flex items-baseline gap-1 overflow-hidden">
-                      <p className="text-xl font-bold truncate text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-cyan-600 dark:from-blue-400 dark:to-cyan-400" title={result.usdcBalance}>
-                        {formatCompact(result.usdcBalance)}
-                      </p>
-                      <span className="text-xs font-medium text-blue-600/90 dark:text-blue-400/70 shrink-0">
-                        USDC
-                      </span>
-                    </div>
-                  )}
-                </div>
-
-                <div className="p-4 bg-slate-50/80 dark:bg-slate-900/80 rounded-xl border border-slate-200/80 dark:border-slate-800/50 transition-colors duration-300 flex flex-col justify-center overflow-hidden">
-                  <p className="text-xs text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1.5"><img src="https://cryptologos.cc/logos/multi-collateral-dai-dai-logo.svg" className="w-3.5 h-3.5 object-contain" alt="DAI" /> DAI Balance</p>
-                  {loading ? (
-                    <div className="h-7 w-20 bg-slate-200 dark:bg-slate-800 animate-pulse rounded" />
-                  ) : (
-                    <div className="flex items-baseline gap-1 overflow-hidden">
-                      <p className="text-xl font-bold truncate text-transparent bg-clip-text bg-gradient-to-r from-amber-600 to-yellow-600 dark:from-amber-400 dark:to-yellow-400" title={result.daiBalance}>
-                        {formatCompact(result.daiBalance)}
-                      </p>
-                      <span className="text-xs font-medium text-amber-600/90 dark:text-amber-400/70 shrink-0">
-                        DAI
-                      </span>
-                    </div>
-                  )}
-                </div>
-
-                <div className="p-4 bg-slate-50/80 dark:bg-slate-900/80 rounded-xl border border-slate-200/80 dark:border-slate-800/50 transition-colors duration-300 flex flex-col justify-center overflow-hidden">
-                  <p className="text-xs text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1.5"><img src="https://cryptologos.cc/logos/ethereum-eth-logo.svg" className="w-3.5 h-3.5 object-contain opacity-75" alt="WETH" /> WETH Balance</p>
-                  {loading ? (
-                    <div className="h-7 w-20 bg-slate-200 dark:bg-slate-800 animate-pulse rounded" />
-                  ) : (
-                    <div className="flex items-baseline gap-1 overflow-hidden">
-                      <p className="text-xl font-bold truncate text-transparent bg-clip-text bg-gradient-to-r from-fuchsia-600 to-pink-600 dark:from-fuchsia-400 dark:to-pink-400" title={result.wethBalance}>
-                        {formatCompact(result.wethBalance)}
-                      </p>
-                      <span className="text-xs font-medium text-fuchsia-600/90 dark:text-fuchsia-400/70 shrink-0">
-                        WETH
-                      </span>
-                    </div>
-                  )}
-                </div>
-
-                <div className="p-4 bg-slate-50/80 dark:bg-slate-900/80 rounded-xl border border-slate-200/80 dark:border-slate-800/50 transition-colors duration-300 flex flex-col justify-center overflow-hidden">
-                  <p className="text-xs text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1.5"><img src="https://cryptologos.cc/logos/pepe-pepe-logo.svg" className="w-3.5 h-3.5 object-contain" alt="PEPE" /> PEPE Balance</p>
-                  {loading ? (
-                    <div className="h-7 w-20 bg-slate-200 dark:bg-slate-800 animate-pulse rounded" />
-                  ) : (
-                    <div className="flex items-baseline gap-1 overflow-hidden">
-                      <p className="text-xl font-bold truncate text-transparent bg-clip-text bg-gradient-to-r from-lime-600 to-green-600 dark:from-lime-400 dark:to-green-400" title={result.pepeBalance}>
-                        {formatCompact(result.pepeBalance)}
-                      </p>
-                      <span className="text-xs font-medium text-lime-600/90 dark:text-lime-400/70 shrink-0">
-                        PEPE
-                      </span>
-                    </div>
-                  )}
-                </div>
-
-                <div className="p-4 bg-slate-50/80 dark:bg-slate-900/80 rounded-xl border border-slate-200/80 dark:border-slate-800/50 transition-colors duration-300 flex flex-col justify-center">
-                  <p className="text-xs text-slate-500 uppercase tracking-wider mb-2">Address</p>
-                  {loading ? <div className="h-5 w-32 bg-slate-200 dark:bg-slate-800 animate-pulse rounded" /> : <p className="text-sm text-slate-600 dark:text-slate-300 font-mono truncate" title={result.address}>{result.address}</p>}
-                </div>
-                
-                <div 
-                  tabIndex={0}
-                  className="p-4 bg-slate-50/80 dark:bg-slate-900/80 rounded-xl border border-slate-200/80 dark:border-slate-800/50 transition-colors duration-300 flex flex-col justify-center cursor-help relative group focus:outline-none focus:ring-1 focus:ring-slate-500"
-                >
-                  <div className="absolute bottom-full right-0 sm:left-1/2 sm:right-auto sm:-translate-x-1/2 mb-3 w-[85vw] max-w-[260px] sm:w-64 p-3 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs rounded-xl shadow-xl dark:shadow-2xl border-slate-200 dark:border-slate-700 opacity-0 group-hover:opacity-100 group-focus:opacity-100 transition-opacity duration-300 pointer-events-none z-50 border border-slate-700">
-                    <p className="font-semibold mb-1.5 text-slate-900 dark:text-slate-100">Score Breakdown:</p>
-                    <ul className="list-disc pl-4 space-y-1 text-slate-600 dark:text-slate-300">
-                      <li>Transaction diversity (40%)</li>
-                      <li>Token diversity (30%)</li>
-                      <li>Total network activity (30%)</li>
-                      {result.concentratedRiskToken && (
-                        <li className="text-rose-600 dark:text-rose-400 font-medium">Concentration Penalty (-20pts)</li>
-                      )}
-                    </ul>
-                    <div className="mt-2 pt-2 border-t border-slate-200 dark:border-slate-700">
-                      <div className="flex items-center gap-2 mb-1"><span className="w-2 h-2 rounded-full bg-rose-400"></span> &lt; 30 (Low Health)</div>
-                      <div className="flex items-center gap-2 mb-1"><span className="w-2 h-2 rounded-full bg-amber-400"></span> 30 - 70 (Moderate)</div>
-                      <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-emerald-400"></span> &gt; 70 (High Health)</div>
-                    </div>
-                    <div className="absolute -bottom-1.5 right-6 sm:left-1/2 sm:right-auto sm:-translate-x-1/2 w-3 h-3 bg-white dark:bg-slate-800 border-b border-r border-slate-200 dark:border-slate-700 rotate-45"></div>
-                  </div>
-
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-1 border-b border-dashed border-slate-300 dark:border-slate-600 pb-0.5">
-                      <p className="text-xs text-slate-500 uppercase tracking-wider">Health Score</p>
-                      <div className="relative flex items-center justify-center">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 text-slate-400 opacity-80 group-hover:opacity-100 group-focus:opacity-100 transition-opacity relative z-10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                        <div className="absolute inset-0 bg-slate-400/20 rounded-full animate-ping opacity-75"></div>
-                      </div>
-                    </div>
-                    {loading ? <div className="h-4 w-10 bg-slate-200 dark:bg-slate-800 animate-pulse rounded" /> : <span className={`text-xs font-bold shrink-0 whitespace-nowrap ${result.healthScore > 70 ? 'text-emerald-500 dark:text-emerald-400' : result.healthScore >= 30 ? 'text-amber-600 dark:text-amber-400' : 'text-rose-600 dark:text-rose-400'}`}>{result.healthScore}/100</span>}
-                  </div>
-                  <div className="h-1.5 w-full bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden mt-1 relative">
-                    <div 
-                      className={`absolute top-0 left-0 h-full transition-all duration-1000 ease-out shadow-[0_0_10px_rgba(0,0,0,0.5)] ${
-                        result.healthScore > 70 ? 'bg-emerald-500 dark:bg-emerald-400 shadow-emerald-500/50 dark:shadow-emerald-400/50' : 
-                        result.healthScore >= 30 ? 'bg-amber-500 dark:bg-amber-400 shadow-amber-500/50 dark:shadow-amber-400/50' : 'bg-rose-500 dark:bg-rose-400 shadow-rose-500/50 dark:shadow-rose-400/50'
-                      }`}
-                      style={{ width: loading ? '0%' : `${result.healthScore}%` }}
+            <form onSubmit={handleSubmit} className="space-y-6 relative z-30">
+              <div className={`grid grid-cols-1 ${isComparisonMode ? 'sm:grid-cols-2 gap-4' : 'gap-2'}`}>
+                <div className="space-y-2">
+                  <label htmlFor="address1" className="block text-sm font-medium text-slate-700 dark:text-slate-300 ml-1">
+                    {isComparisonMode ? "Wallet 1 Address" : "Wallet Address"}
+                  </label>
+                  <div className="relative group">
+                    <input
+                      id="address1"
+                      type="text"
+                      value={address1}
+                      onChange={(e) => {
+                        setAddress1(e.target.value);
+                        if (wallet1Data.error) updateWalletData(1, { error: "" });
+                      }}
+                      placeholder="0x..."
+                      className="w-full bg-slate-100/50 dark:bg-slate-950/50 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 text-base sm:text-lg rounded-2xl px-4 sm:px-5 py-3 sm:py-4 outline-none transition-all duration-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 group-hover:border-slate-300 dark:group-hover:border-slate-600"
                     />
+                    <div className="absolute inset-0 -z-10 rounded-2xl bg-gradient-to-r from-indigo-500 to-purple-500 opacity-0 blur transition-opacity duration-500 group-focus-within:opacity-20" />
                   </div>
-                  {result.concentratedRiskToken && !loading && (
-                    <div className="mt-3 flex flex-col gap-1.5 bg-rose-50 dark:bg-rose-950/40 border border-rose-500/30 p-2.5 rounded-lg w-full relative overflow-hidden">
-                      <div className="absolute inset-0 bg-rose-500/5 animate-pulse"></div>
-                      <div className="flex items-center gap-1.5 relative z-10">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-rose-600 dark:text-rose-400 shrink-0" viewBox="0 0 20 20" fill="currentColor">
-                          <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                        </svg>
-                        <p className="text-xs font-bold text-rose-700 dark:text-rose-400 tracking-wide">
-                          CONCENTRATED RISK
-                        </p>
-                      </div>
-                      <p className="text-[10px] sm:text-xs leading-snug text-rose-600/90 dark:text-rose-400/80 relative z-10">
-                        Over 50% of this wallet's value is held in <strong className="font-bold">{result.concentratedRiskToken}</strong>. This severe lack of diversification greatly increases exposure to asset volatility.
-                      </p>
-                    </div>
-                  )}
-                </div>
-                
-              </div>
-
-              {/* AI Summary Section */}
-              {(loadingSummary || aiSummary) && (
-                <div className="mt-6 p-6 bg-gradient-to-r from-indigo-50 dark:from-indigo-500/10 via-purple-50 dark:via-purple-500/5 to-transparent rounded-2xl border border-indigo-200 dark:border-indigo-500/20 relative overflow-hidden shadow-[0_0_30px_-15px_rgba(99,102,241,0.3)]">
-                  <div className="absolute top-0 right-0 p-4 opacity-5">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-32 w-32" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
-                  </div>
-                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-0 mb-4 relative z-10">
-                    <div className="flex items-center gap-2">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-indigo-600 dark:text-indigo-400 shrink-0" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clipRule="evenodd" />
+                  {wallet1Data.error && (
+                    <div className="mt-2 p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 text-xs sm:text-sm animate-in fade-in duration-300 flex items-start gap-2 relative z-30">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 sm:h-5 sm:w-5 shrink-0 mt-0.5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
                       </svg>
-                      <h3 className="text-sm font-bold text-indigo-700 dark:text-indigo-300 uppercase tracking-widest">AI Wallet Insights</h3>
-                    </div>
-                    
-                    <div className="flex items-center gap-2 self-end sm:self-auto w-full sm:w-auto mt-2 sm:mt-0">
-                      {aiSummary && !aiSummary.startsWith('ERROR:') && !loadingSummary && (
-                        <button 
-                          onClick={handleCopySummary}
-                          className="flex-1 sm:flex-none justify-center text-sm sm:text-xs bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-700 dark:text-indigo-700 dark:text-indigo-300 px-4 sm:px-3 py-3 sm:py-1.5 min-h-[44px] sm:min-h-0 rounded-xl sm:rounded-lg flex items-center gap-1.5 transition-colors border border-indigo-500/30 font-medium"
-                        >
-                          {copiedSummary ? (
-                            <>
-                              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 sm:h-3.5 sm:w-3.5 text-emerald-500 dark:text-emerald-400" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>
-                              Copied!
-                            </>
-                          ) : (
-                            <>
-                              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 sm:h-3.5 sm:w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012-2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
-                              Copy
-                            </>
-                          )}
-                        </button>
-                      )}
-                      <button 
-                        onClick={() => generateAiSummary(result?.transactions || [])}
-                        disabled={loadingSummary}
-                        className="flex-1 sm:flex-none justify-center text-sm sm:text-xs bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 px-4 sm:px-3 py-3 sm:py-1.5 min-h-[44px] sm:min-h-0 rounded-xl sm:rounded-lg flex items-center gap-1.5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed border border-indigo-500/30 font-medium"
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" className={`h-3.5 w-3.5 ${loadingSummary ? 'animate-spin' : ''}`} viewBox="0 0 20 20" fill="currentColor">
-                          <path fillRule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clipRule="evenodd" />
-                        </svg>
-                        Regenerate
-                      </button>
-                    </div>
-                  </div>
-
-                  {loadingSummary ? (
-                    <div className="space-y-3 animate-pulse relative z-10 pt-2">
-                      <div className="h-4 bg-indigo-500/20 rounded w-full"></div>
-                      <div className="h-4 bg-indigo-500/20 rounded w-5/6"></div>
-                      <div className="h-4 bg-indigo-500/20 rounded w-2/3"></div>
-                    </div>
-                  ) : (
-                    <div className="relative z-10 p-4 sm:p-5 bg-white/60 dark:bg-slate-900/40 rounded-xl border border-indigo-200 dark:border-indigo-500/10 backdrop-blur-sm">
-                      <p className={`text-sm sm:text-[15px] leading-relaxed whitespace-pre-wrap font-medium ${aiSummary?.startsWith('ERROR:') ? 'text-rose-500 dark:text-rose-400' : 'text-slate-800 dark:text-slate-200'}`}>
-                        {aiSummary}
-                      </p>
+                      <p>{wallet1Data.error}</p>
                     </div>
                   )}
                 </div>
-              )}
 
-              {/* Transactions Section */}
-              <div className="mt-6 pt-6 border-t border-slate-200 dark:border-slate-800/50">
-                <div className="flex items-center justify-between mb-4">
-                  <h4 className="text-sm font-medium text-slate-300 uppercase tracking-wider">Recent Transactions</h4>
-                  <span className="text-xs bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400 px-2 py-1 rounded-md">
-                    {loading ? "..." : `Total Sent: ${result.transactionCount}`}
-                  </span>
-                </div>
-                
-                {loading ? (
-                  <div className="space-y-3">
-                    {[...Array(3)].map((_, i) => (
-                      <div key={i} className="h-16 bg-slate-200 dark:bg-slate-800/40 animate-pulse rounded-xl" />
-                    ))}
-                  </div>
-                ) : result.txError ? (
-                  <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-xl text-amber-400/80 text-sm text-center">
-                    {result.txError}
-                  </div>
-                ) : result.transactions && result.transactions.length > 0 ? (
-                  <div className="space-y-0 max-h-[420px] overflow-y-auto pr-2 custom-scrollbar relative mt-2">
-                    {/* Continuous vertical timeline line */}
-                    <div className="absolute top-6 bottom-6 left-[1.125rem] sm:left-[1.25rem] w-px bg-slate-200 dark:bg-slate-800 z-0"></div>
-                    
-                    {result.transactions.map((tx: any, idx: number) => {
-                      const knownToLabel = tx.to ? KNOWN_ADDRESSES[tx.to.toLowerCase()] : null;
-                      const actionLabel = knownToLabel || (tx.type === 'IN' ? 'Received' : 'Sent');
-                      
-                      let iconSvg;
-                      let themeColor;
-                      
-                      if (actionLabel === 'DEX Swap') {
-                        themeColor = 'text-purple-600 dark:text-purple-400 bg-purple-500/10 border-purple-500/30';
-                        iconSvg = <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg>;
-                      } else if (actionLabel.includes('Contract')) {
-                        themeColor = 'text-teal-600 dark:text-teal-400 bg-teal-500/10 border-teal-500/30';
-                        iconSvg = <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>;
-                      } else if (tx.type === 'IN') {
-                        themeColor = 'text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border-emerald-500/30';
-                        iconSvg = <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" /></svg>;
-                      } else {
-                        themeColor = 'text-rose-600 dark:text-rose-400 bg-rose-500/10 border-rose-500/30';
-                        iconSvg = <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" /></svg>;
-                      }
-
-                      // Format the date string nicely
-                      const txDate = tx.timestamp ? new Date(tx.timestamp) : null;
-                      const formattedDate = txDate && !isNaN(txDate.getTime()) 
-                        ? txDate.toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }) 
-                        : `Block ${tx.blockNumber}`;
-
-                      return (
-                        <div key={`${tx.hash}-${idx}`} className="group relative z-10 flex items-start gap-3 sm:gap-6 py-3 transition-all duration-300">
-                          {/* Timeline Dot */}
-                          <div className="shrink-0 relative w-9 h-9 sm:w-10 sm:h-10 mt-1 sm:mt-0.5 transition-transform duration-300 group-hover:scale-110 group-hover:shadow-[0_0_15px_-3px_rgba(99,102,241,0.4)] rounded-full">
-                            <div className="absolute inset-0 bg-white dark:bg-slate-950 rounded-full z-0"></div>
-                            <div className={`absolute inset-0 flex items-center justify-center rounded-full border-2 z-10 ${themeColor}`}>
-                              {iconSvg}
-                            </div>
-                          </div>
-                          
-                          {/* Content Card */}
-                          <div className="flex-1 flex flex-col sm:flex-row items-start sm:items-center justify-between p-3 sm:p-4 bg-white/50 dark:bg-slate-900/60 rounded-xl border border-slate-200 dark:border-slate-800/50 group-hover:bg-white dark:group-hover:bg-slate-800/80 group-hover:border-indigo-200/60 dark:group-hover:border-indigo-500/30 group-hover:-translate-y-0.5 group-hover:shadow-md dark:group-hover:shadow-[0_4px_20px_-5px_rgba(0,0,0,0.5)] transition-all duration-300 overflow-hidden w-full">
-                            <div className="flex flex-col items-start gap-1.5 min-w-0 w-full sm:w-auto">
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <span className={`text-[9px] sm:text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-md border ${themeColor} shrink-0`}>
-                                  {actionLabel}
-                                </span>
-                                <span className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 font-medium whitespace-nowrap">
-                                  {formattedDate}
-                                </span>
-                              </div>
-                              <a href={`https://etherscan.io/tx/${tx.hash}`} target="_blank" rel="noopener noreferrer" className="text-xs sm:text-sm font-mono text-indigo-600 dark:text-indigo-400/80 hover:text-indigo-800 dark:hover:text-indigo-300 transition-colors truncate w-full block mt-0.5">
-                                {tx.hash}
-                              </a>
-                            </div>
-                            <div className="text-left sm:text-right shrink-0 mt-2.5 sm:mt-0 w-full sm:w-auto pt-2 sm:pt-0 border-t border-slate-100 dark:border-slate-800/50 sm:border-0">
-                              <p className="text-sm sm:text-[15px] font-bold text-slate-800 dark:text-slate-200 truncate">{tx.value} <span className="text-xs sm:text-sm font-medium text-slate-500 dark:text-slate-400">{tx.asset}</span></p>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <div className="p-8 bg-slate-50 dark:bg-slate-900/40 rounded-xl border border-dashed border-slate-300 dark:border-slate-800/50 text-center flex flex-col items-center justify-center">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-slate-600 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M20 12H4M8 16l-4-4 4-4" /></svg>
-                    <p className="text-slate-600 dark:text-slate-400 text-sm font-medium">This wallet has no recorded transaction history.</p>
-                    <p className="text-slate-500 dark:text-slate-500 text-xs mt-1 italic">The address is completely dormant.</p>
+                {isComparisonMode && (
+                  <div className="space-y-2">
+                    <label htmlFor="address2" className="block text-sm font-medium text-slate-700 dark:text-slate-300 ml-1">
+                      Wallet 2 Address
+                    </label>
+                    <div className="relative group">
+                      <input
+                        id="address2"
+                        type="text"
+                        value={address2}
+                        onChange={(e) => {
+                          setAddress2(e.target.value);
+                          if (wallet2Data.error) updateWalletData(2, { error: "" });
+                        }}
+                        placeholder="0x..."
+                        className="w-full bg-slate-100/50 dark:bg-slate-950/50 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 text-base sm:text-lg rounded-2xl px-4 sm:px-5 py-3 sm:py-4 outline-none transition-all duration-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 group-hover:border-slate-300 dark:group-hover:border-slate-600"
+                      />
+                      <div className="absolute inset-0 -z-10 rounded-2xl bg-gradient-to-r from-indigo-500 to-purple-500 opacity-0 blur transition-opacity duration-500 group-focus-within:opacity-20" />
+                    </div>
+                    {wallet2Data.error && (
+                      <div className="mt-2 p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 text-xs sm:text-sm animate-in fade-in duration-300 flex items-start gap-2 relative z-30">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 sm:h-5 sm:w-5 shrink-0 mt-0.5" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                        </svg>
+                        <p>{wallet2Data.error}</p>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
 
-              {/* Decoded Logs Section */}
-              <div className="mt-8 pt-8 border-t border-slate-200 dark:border-slate-800/50">
-                <div className="flex items-center justify-between mb-6">
-                  <h4 className="text-sm font-medium text-slate-300 uppercase tracking-wider flex items-center gap-2">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-indigo-400" viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
-                    </svg>
-                    Decoded Transfer Logs
-                  </h4>
-                  <span className="text-xs text-slate-500">ethers.Interface</span>
-                </div>
-                
-                {loading ? (
-                  <div className="space-y-4">
-                    <div className="h-24 bg-slate-200 dark:bg-slate-800/40 animate-pulse rounded-2xl" />
-                    <div className="h-24 bg-slate-200 dark:bg-slate-800/40 animate-pulse rounded-2xl" />
-                  </div>
-                ) : result.logsError ? (
-                  <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-xl text-amber-400/80 text-sm text-center">
-                    {result.logsError}
-                  </div>
-                ) : result.decodedLogs && result.decodedLogs.length > 0 ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {result.decodedLogs.map((log: any, idx: number) => {
-                      const isSent = log.from.toLowerCase() === result.address.toLowerCase();
-                      const isReceived = log.to.toLowerCase() === result.address.toLowerCase();
-                      const label = isSent ? 'Sent' : (isReceived ? 'Received' : 'Transferred');
-                      const labelColor = isSent ? 'text-rose-400 bg-rose-500/10 border-rose-500/20' : (isReceived ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20' : 'text-slate-400 bg-slate-500/10 border-slate-500/20');
-                      
-                      const numAmount = parseFloat(log.amountRaw);
-                      let displayAmount = log.amountRaw;
-                      if (!isNaN(numAmount)) {
-                        displayAmount = numAmount.toLocaleString('en-US', { maximumFractionDigits: 18 });
-                      }
+              <button
+                type="submit"
+                disabled={isAnyLoading || !address1.trim() || (isComparisonMode && !address2.trim())}
+                className="w-full relative overflow-hidden group bg-slate-900 hover:bg-slate-800 dark:bg-slate-100 dark:hover:bg-white text-white dark:text-slate-900 font-semibold text-lg rounded-2xl px-5 py-4 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <span className="relative z-10 flex items-center justify-center gap-2">
+                  {isAnyLoading ? (
+                    <>
+                      <svg className="animate-spin -ml-1 mr-2 h-5 w-5 text-white dark:text-slate-900" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Processing...
+                    </>
+                  ) : (
+                    isComparisonMode ? "Compare Wallets" : "Analyze Wallet"
+                  )}
+                </span>
+                <div className="absolute inset-0 h-full w-full bg-gradient-to-r from-indigo-100 to-purple-100 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
+              </button>
+            </form>
+          </div>
+        </div>
 
-                      return (
-                        <div key={idx} className="p-5 bg-white dark:bg-slate-900/80 rounded-2xl border border-slate-200 dark:border-slate-700/50 hover:border-indigo-300 dark:hover:border-indigo-500/50 transition-colors duration-300 group">
-                          <div className="flex items-center justify-between mb-4">
-                            <span className={`text-xs font-semibold px-2 py-1 rounded-md border ${labelColor}`}>
-                              {label}
-                            </span>
-                            <a href={`https://etherscan.io/tx/${log.transactionHash}`} target="_blank" rel="noopener noreferrer" className="text-xs text-indigo-600 dark:text-indigo-400/70 hover:text-indigo-800 dark:hover:text-indigo-300 transition-colors">
-                              {log.transactionHash.substring(0, 10)}...
-                            </a>
-                          </div>
-                          <div className="space-y-2 mb-4">
-                            <div className="flex flex-col">
-                              <span className="text-[10px] text-slate-500 dark:text-slate-500 uppercase">From</span>
-                              <span className="text-xs text-slate-700 dark:text-slate-300 font-mono truncate" title={log.from}>
-                                {KNOWN_ADDRESSES[log.from.toLowerCase()] || log.from}
-                              </span>
-                            </div>
-                            <div className="flex flex-col">
-                              <span className="text-[10px] text-slate-500 dark:text-slate-500 uppercase">To</span>
-                              <span className="text-xs text-slate-700 dark:text-slate-300 font-mono truncate" title={log.to}>
-                                {KNOWN_ADDRESSES[log.to.toLowerCase()] || log.to}
-                              </span>
-                            </div>
-                          </div>
-                          <div className="pt-3 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between">
-                            <span className="text-xs text-slate-500 uppercase">Amount</span>
-                            <span className="text-sm font-bold text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-purple-600 dark:from-indigo-400 dark:to-purple-400 truncate max-w-[120px] sm:max-w-[150px]" title={`${log.amountRaw} ${log.symbol || 'ERC20'}`}>
-                              {displayAmount} <span className="text-xs text-indigo-600 dark:text-indigo-300/80">{log.symbol || 'ERC20'}</span>
-                            </span>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <div className="p-8 text-center bg-slate-50 dark:bg-slate-900/40 rounded-2xl border border-slate-300 dark:border-slate-800/50 border-dashed">
-                    <p className="text-slate-600 dark:text-slate-400 text-sm">No ERC-20 Transfer logs found in recent transactions</p>
-                    <p className="text-slate-500 dark:text-slate-500 text-xs mt-1">Raw logs returned no matching event signatures</p>
-                  </div>
-                )}
-              </div>
+        {/* Results Grid */}
+        {showResults && (
+          <div className={`mt-8 grid grid-cols-1 ${isComparisonMode ? 'xl:grid-cols-2' : ''} gap-8 w-full`}>
+            {(wallet1Data.result || wallet1Data.loading) && (
+              <WalletResultView 
+                result={wallet1Data.result} 
+                loading={wallet1Data.loading} 
+                aiSummary={wallet1Data.aiSummary}
+                loadingSummary={wallet1Data.loadingSummary}
+                onGenerateSummary={(txs) => generateAiSummary(txs, 1)}
+              />
+            )}
+            
+            {isComparisonMode && (wallet2Data.result || wallet2Data.loading) && (
+              <WalletResultView 
+                result={wallet2Data.result} 
+                loading={wallet2Data.loading} 
+                aiSummary={wallet2Data.aiSummary}
+                loadingSummary={wallet2Data.loadingSummary}
+                onGenerateSummary={(txs) => generateAiSummary(txs, 2)}
+              />
+            )}
           </div>
         )}
       </main>

@@ -1,0 +1,507 @@
+import React, { useState } from "react";
+
+const KNOWN_ADDRESSES: Record<string, string> = {
+  "0x7a250d5630b4cf539739df2c5dacb4c659f2488d": "DEX Swap", // Uniswap V2 Router
+  "0x68b3465833fb72a70ecdf485e0e4c7bd8665fc45": "DEX Swap", // Uniswap V3 Router
+  "0xe592427a0aece92de3edee1f18e0157c05861564": "DEX Swap", // Uniswap V3 Router
+  "0xdef1c0ded9bec7f1a1670819833240f027b25eff": "DEX Swap", // 0x Exchange Proxy
+  "0x1111111254fb6c44bac0bed2854e76f90643097d": "DEX Swap", // 1inch Router
+  "0xdac17f958d2ee523a2206206994597c13d831ec7": "USDT Contract", // Tether
+  "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48": "USDC Contract", // USDC
+};
+
+interface WalletResultViewProps {
+  result: any;
+  loading: boolean;
+  aiSummary: string | null;
+  loadingSummary: boolean;
+  onGenerateSummary: (transactions: any[]) => void;
+}
+
+export default function WalletResultView({
+  result,
+  loading,
+  aiSummary,
+  loadingSummary,
+  onGenerateSummary,
+}: WalletResultViewProps) {
+  const [copiedSummary, setCopiedSummary] = useState(false);
+
+  const handleCopySummary = () => {
+    if (aiSummary) {
+      navigator.clipboard.writeText(aiSummary);
+      setCopiedSummary(true);
+      setTimeout(() => setCopiedSummary(false), 2000);
+    }
+  };
+
+  const formatCompact = (valStr: string) => {
+    if (!valStr || valStr === "0.00" || valStr === "0" || valStr === "Error") return valStr;
+    const cleanStr = valStr.replace(/,/g, '');
+    const num = parseFloat(cleanStr);
+    if (isNaN(num)) return valStr;
+    if (num >= 100000) {
+      return Intl.NumberFormat('en-US', { notation: "compact", maximumFractionDigits: 2 }).format(num);
+    }
+    return valStr;
+  };
+
+  const handleExportJSON = () => {
+    if (!result) return;
+    const dataStr = JSON.stringify(result, null, 2);
+    const blob = new Blob([dataStr], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const downloadAnchorNode = document.createElement('a');
+    downloadAnchorNode.setAttribute("href", url);
+    downloadAnchorNode.setAttribute("download", `wallet_${result.address}_data.json`);
+    document.body.appendChild(downloadAnchorNode);
+    downloadAnchorNode.click();
+    document.body.removeChild(downloadAnchorNode);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleExportCSV = () => {
+    if (!result || !result.transactions) return;
+    const headers = ["Hash", "From", "To", "Value", "Asset", "Block", "Date", "Type"];
+    const csvContent = [
+      headers.map(h => `"${h}"`).join(","),
+      ...result.transactions.map((tx: any) => {
+        const date = tx.timestamp ? new Date(tx.timestamp).toISOString() : `Block ${tx.blockNumber}`;
+        return `"${tx.hash}","${tx.from}","${tx.to || ''}","${tx.value}","${tx.asset}","${tx.blockNumber}","${date}","${tx.type}"`;
+      })
+    ].join("\n");
+    
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const downloadAnchorNode = document.createElement('a');
+    downloadAnchorNode.setAttribute("href", url);
+    downloadAnchorNode.setAttribute("download", `wallet_${result.address}_transactions.csv`);
+    document.body.appendChild(downloadAnchorNode);
+    downloadAnchorNode.click();
+    document.body.removeChild(downloadAnchorNode);
+    URL.revokeObjectURL(url);
+  };
+
+  if (!result && !loading) return null;
+
+  return (
+    <div className="p-4 sm:p-6 md:p-8 bg-white/70 dark:bg-slate-900/50 backdrop-blur-xl border border-slate-200/80 dark:border-slate-800 rounded-2xl sm:rounded-3xl shadow-xl dark:shadow-2xl animate-in fade-in slide-in-from-bottom-4 duration-500 relative z-30 w-full h-full flex flex-col">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 sm:mb-8">
+        <h3 className="text-lg sm:text-xl font-semibold text-slate-900 dark:text-slate-200 flex items-center gap-3">
+          {loading ? (
+            <div className="w-4 h-4 rounded-full border-2 border-slate-300 dark:border-slate-600 border-t-indigo-500 animate-spin" />
+          ) : (
+            <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+          )}
+          {loading ? "Analyzing..." : "Wallet Analysis Complete"}
+        </h3>
+        
+        {!loading && result && (
+          <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
+            <button onClick={handleExportCSV} className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 hover:text-slate-900 dark:hover:text-white transition-colors flex items-center gap-1.5 border border-slate-200 dark:border-slate-700">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+              CSV
+            </button>
+            <button onClick={handleExportJSON} className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-500/20 hover:text-indigo-700 dark:hover:text-indigo-300 transition-colors flex items-center gap-1.5 border border-indigo-200 dark:border-indigo-500/30">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+              JSON
+            </button>
+          </div>
+        )}
+      </div>
+
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 sm:gap-4 flex-none">
+        
+        <div className="p-4 bg-slate-50/80 dark:bg-slate-900/80 rounded-xl border border-slate-200/80 dark:border-slate-800/50 transition-colors duration-300 flex flex-col justify-center">
+          <p className="text-xs text-slate-500 uppercase tracking-wider mb-2">Status</p>
+          {loading ? <div className="h-6 w-20 bg-slate-200 dark:bg-slate-800 animate-pulse rounded" /> : <p className="font-medium text-lg text-emerald-600 dark:text-emerald-400">{result.status}</p>}
+        </div>
+        
+        <div className="p-4 bg-slate-50/80 dark:bg-slate-900/80 rounded-xl border border-slate-200/80 dark:border-slate-800/50 transition-colors duration-300 flex flex-col justify-center">
+          <p className="text-xs text-slate-500 uppercase tracking-wider mb-2">Network</p>
+          {loading ? <div className="h-6 w-24 bg-slate-200 dark:bg-slate-800 animate-pulse rounded" /> : <p className="text-slate-800 dark:text-slate-200 font-medium text-lg">{result.network}</p>}
+        </div>
+        
+        <div className="p-4 bg-slate-50/80 dark:bg-slate-900/80 rounded-xl border border-slate-200/80 dark:border-slate-800/50 transition-colors duration-300 flex flex-col justify-center overflow-hidden">
+          <p className="text-xs text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1.5"><img src="https://cryptologos.cc/logos/ethereum-eth-logo.svg" className="w-3.5 h-3.5 object-contain" alt="ETH" /> ETH Balance</p>
+          {loading ? (
+            <div className="h-7 w-20 bg-slate-200 dark:bg-slate-800 animate-pulse rounded" />
+          ) : (
+            <div className="flex items-baseline gap-1 overflow-hidden">
+              <p className="text-xl font-bold truncate text-transparent bg-clip-text bg-gradient-to-r from-emerald-600 to-teal-600 dark:from-emerald-400 dark:to-teal-400" title={result.balance}>
+                {formatCompact(result.balance)}
+              </p>
+              <span className="text-xs font-medium text-emerald-600/90 dark:text-emerald-400/70 shrink-0">
+                ETH
+              </span>
+            </div>
+          )}
+        </div>
+
+        <div className="p-4 bg-slate-50/80 dark:bg-slate-900/80 rounded-xl border border-slate-200/80 dark:border-slate-800/50 transition-colors duration-300 flex flex-col justify-center overflow-hidden">
+          <p className="text-xs text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1.5"><img src="https://cryptologos.cc/logos/usd-coin-usdc-logo.svg" className="w-3.5 h-3.5 object-contain" alt="USDC" /> USDC Balance</p>
+          {loading ? (
+            <div className="h-7 w-20 bg-slate-200 dark:bg-slate-800 animate-pulse rounded" />
+          ) : (
+            <div className="flex items-baseline gap-1 overflow-hidden">
+              <p className="text-xl font-bold truncate text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-cyan-600 dark:from-blue-400 dark:to-cyan-400" title={result.usdcBalance}>
+                {formatCompact(result.usdcBalance)}
+              </p>
+              <span className="text-xs font-medium text-blue-600/90 dark:text-blue-400/70 shrink-0">
+                USDC
+              </span>
+            </div>
+          )}
+        </div>
+
+        <div className="p-4 bg-slate-50/80 dark:bg-slate-900/80 rounded-xl border border-slate-200/80 dark:border-slate-800/50 transition-colors duration-300 flex flex-col justify-center overflow-hidden">
+          <p className="text-xs text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1.5"><img src="https://cryptologos.cc/logos/multi-collateral-dai-dai-logo.svg" className="w-3.5 h-3.5 object-contain" alt="DAI" /> DAI Balance</p>
+          {loading ? (
+            <div className="h-7 w-20 bg-slate-200 dark:bg-slate-800 animate-pulse rounded" />
+          ) : (
+            <div className="flex items-baseline gap-1 overflow-hidden">
+              <p className="text-xl font-bold truncate text-transparent bg-clip-text bg-gradient-to-r from-amber-600 to-yellow-600 dark:from-amber-400 dark:to-yellow-400" title={result.daiBalance}>
+                {formatCompact(result.daiBalance)}
+              </p>
+              <span className="text-xs font-medium text-amber-600/90 dark:text-amber-400/70 shrink-0">
+                DAI
+              </span>
+            </div>
+          )}
+        </div>
+
+        <div className="p-4 bg-slate-50/80 dark:bg-slate-900/80 rounded-xl border border-slate-200/80 dark:border-slate-800/50 transition-colors duration-300 flex flex-col justify-center overflow-hidden">
+          <p className="text-xs text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1.5"><img src="https://cryptologos.cc/logos/ethereum-eth-logo.svg" className="w-3.5 h-3.5 object-contain opacity-75" alt="WETH" /> WETH Balance</p>
+          {loading ? (
+            <div className="h-7 w-20 bg-slate-200 dark:bg-slate-800 animate-pulse rounded" />
+          ) : (
+            <div className="flex items-baseline gap-1 overflow-hidden">
+              <p className="text-xl font-bold truncate text-transparent bg-clip-text bg-gradient-to-r from-fuchsia-600 to-pink-600 dark:from-fuchsia-400 dark:to-pink-400" title={result.wethBalance}>
+                {formatCompact(result.wethBalance)}
+              </p>
+              <span className="text-xs font-medium text-fuchsia-600/90 dark:text-fuchsia-400/70 shrink-0">
+                WETH
+              </span>
+            </div>
+          )}
+        </div>
+
+        <div className="p-4 bg-slate-50/80 dark:bg-slate-900/80 rounded-xl border border-slate-200/80 dark:border-slate-800/50 transition-colors duration-300 flex flex-col justify-center overflow-hidden">
+          <p className="text-xs text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1.5"><img src="https://cryptologos.cc/logos/pepe-pepe-logo.svg" className="w-3.5 h-3.5 object-contain" alt="PEPE" /> PEPE Balance</p>
+          {loading ? (
+            <div className="h-7 w-20 bg-slate-200 dark:bg-slate-800 animate-pulse rounded" />
+          ) : (
+            <div className="flex items-baseline gap-1 overflow-hidden">
+              <p className="text-xl font-bold truncate text-transparent bg-clip-text bg-gradient-to-r from-lime-600 to-green-600 dark:from-lime-400 dark:to-green-400" title={result.pepeBalance}>
+                {formatCompact(result.pepeBalance)}
+              </p>
+              <span className="text-xs font-medium text-lime-600/90 dark:text-lime-400/70 shrink-0">
+                PEPE
+              </span>
+            </div>
+          )}
+        </div>
+
+        <div className="p-4 bg-slate-50/80 dark:bg-slate-900/80 rounded-xl border border-slate-200/80 dark:border-slate-800/50 transition-colors duration-300 flex flex-col justify-center col-span-2 sm:col-span-1">
+          <p className="text-xs text-slate-500 uppercase tracking-wider mb-2">Address</p>
+          {loading ? <div className="h-5 w-32 bg-slate-200 dark:bg-slate-800 animate-pulse rounded" /> : <p className="text-sm text-slate-600 dark:text-slate-300 font-mono truncate" title={result.address}>{result.address}</p>}
+        </div>
+        
+        <div 
+          tabIndex={0}
+          className="p-4 bg-slate-50/80 dark:bg-slate-900/80 rounded-xl border border-slate-200/80 dark:border-slate-800/50 transition-colors duration-300 flex flex-col justify-center cursor-help relative group focus:outline-none focus:ring-1 focus:ring-slate-500 col-span-2 sm:col-span-1 sm:col-start-auto"
+        >
+          <div className="absolute bottom-full right-0 sm:left-1/2 sm:right-auto sm:-translate-x-1/2 mb-3 w-[85vw] max-w-[260px] sm:w-64 p-3 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs rounded-xl shadow-xl dark:shadow-2xl border-slate-200 dark:border-slate-700 opacity-0 group-hover:opacity-100 group-focus:opacity-100 transition-opacity duration-300 pointer-events-none z-50 border border-slate-700">
+            <p className="font-semibold mb-1.5 text-slate-900 dark:text-slate-100">Score Breakdown:</p>
+            <ul className="list-disc pl-4 space-y-1 text-slate-600 dark:text-slate-300">
+              <li>Transaction diversity (40%)</li>
+              <li>Token diversity (30%)</li>
+              <li>Total network activity (30%)</li>
+              {result?.concentratedRiskToken && (
+                <li className="text-rose-600 dark:text-rose-400 font-medium">Concentration Penalty (-20pts)</li>
+              )}
+            </ul>
+            <div className="mt-2 pt-2 border-t border-slate-200 dark:border-slate-700">
+              <div className="flex items-center gap-2 mb-1"><span className="w-2 h-2 rounded-full bg-rose-400"></span> &lt; 30 (Low Health)</div>
+              <div className="flex items-center gap-2 mb-1"><span className="w-2 h-2 rounded-full bg-amber-400"></span> 30 - 70 (Moderate)</div>
+              <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-emerald-400"></span> &gt; 70 (High Health)</div>
+            </div>
+            <div className="absolute -bottom-1.5 right-6 sm:left-1/2 sm:right-auto sm:-translate-x-1/2 w-3 h-3 bg-white dark:bg-slate-800 border-b border-r border-slate-200 dark:border-slate-700 rotate-45"></div>
+          </div>
+
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-1 border-b border-dashed border-slate-300 dark:border-slate-600 pb-0.5">
+              <p className="text-xs text-slate-500 uppercase tracking-wider">Health Score</p>
+              <div className="relative flex items-center justify-center">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 text-slate-400 opacity-80 group-hover:opacity-100 group-focus:opacity-100 transition-opacity relative z-10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <div className="absolute inset-0 bg-slate-400/20 rounded-full animate-ping opacity-75"></div>
+              </div>
+            </div>
+            {loading ? <div className="h-4 w-10 bg-slate-200 dark:bg-slate-800 animate-pulse rounded" /> : <span className={`text-xs font-bold shrink-0 whitespace-nowrap ${result.healthScore > 70 ? 'text-emerald-500 dark:text-emerald-400' : result.healthScore >= 30 ? 'text-amber-600 dark:text-amber-400' : 'text-rose-600 dark:text-rose-400'}`}>{result.healthScore}/100</span>}
+          </div>
+          <div className="h-1.5 w-full bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden mt-1 relative">
+            <div 
+              className={`absolute top-0 left-0 h-full transition-all duration-1000 ease-out shadow-[0_0_10px_rgba(0,0,0,0.5)] ${
+                result.healthScore > 70 ? 'bg-emerald-500 dark:bg-emerald-400 shadow-emerald-500/50 dark:shadow-emerald-400/50' : 
+                result.healthScore >= 30 ? 'bg-amber-500 dark:bg-amber-400 shadow-amber-500/50 dark:shadow-amber-400/50' : 'bg-rose-500 dark:bg-rose-400 shadow-rose-500/50 dark:shadow-rose-400/50'
+              }`}
+              style={{ width: loading ? '0%' : `${result.healthScore}%` }}
+            />
+          </div>
+          {result?.concentratedRiskToken && !loading && (
+            <div className="mt-3 flex flex-col gap-1.5 bg-rose-50 dark:bg-rose-950/40 border border-rose-500/30 p-2.5 rounded-lg w-full relative overflow-hidden">
+              <div className="absolute inset-0 bg-rose-500/5 animate-pulse"></div>
+              <div className="flex items-center gap-1.5 relative z-10">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-rose-600 dark:text-rose-400 shrink-0" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                </svg>
+                <p className="text-xs font-bold text-rose-700 dark:text-rose-400 tracking-wide">
+                  CONCENTRATED RISK
+                </p>
+              </div>
+              <p className="text-[10px] sm:text-xs leading-snug text-rose-600/90 dark:text-rose-400/80 relative z-10">
+                Over 50% of this wallet's value is held in <strong className="font-bold">{result.concentratedRiskToken}</strong>. This severe lack of diversification greatly increases exposure to asset volatility.
+              </p>
+            </div>
+          )}
+        </div>
+        
+      </div>
+
+      {/* AI Summary Section */}
+      {(loadingSummary || aiSummary) && (
+        <div className="mt-6 p-6 bg-gradient-to-r from-indigo-50 dark:from-indigo-500/10 via-purple-50 dark:via-purple-500/5 to-transparent rounded-2xl border border-indigo-200 dark:border-indigo-500/20 relative overflow-hidden shadow-[0_0_30px_-15px_rgba(99,102,241,0.3)] flex-none">
+          <div className="absolute top-0 right-0 p-4 opacity-5">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-32 w-32" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+          </div>
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-0 mb-4 relative z-10">
+            <div className="flex items-center gap-2">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-indigo-600 dark:text-indigo-400 shrink-0" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clipRule="evenodd" />
+              </svg>
+              <h3 className="text-sm font-bold text-indigo-700 dark:text-indigo-300 uppercase tracking-widest">AI Wallet Insights</h3>
+            </div>
+            
+            <div className="flex items-center gap-2 self-end sm:self-auto w-full sm:w-auto mt-2 sm:mt-0">
+              {aiSummary && !aiSummary.startsWith('ERROR:') && !loadingSummary && (
+                <button 
+                  onClick={handleCopySummary}
+                  className="flex-1 sm:flex-none justify-center text-sm sm:text-xs bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-700 dark:text-indigo-700 dark:text-indigo-300 px-4 sm:px-3 py-3 sm:py-1.5 min-h-[44px] sm:min-h-0 rounded-xl sm:rounded-lg flex items-center gap-1.5 transition-colors border border-indigo-500/30 font-medium"
+                >
+                  {copiedSummary ? (
+                    <>
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 sm:h-3.5 sm:w-3.5 text-emerald-500 dark:text-emerald-400" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>
+                      Copied!
+                    </>
+                  ) : (
+                    <>
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 sm:h-3.5 sm:w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012-2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+                      Copy
+                    </>
+                  )}
+                </button>
+              )}
+              <button 
+                onClick={() => onGenerateSummary(result?.transactions || [])}
+                disabled={loadingSummary}
+                className="flex-1 sm:flex-none justify-center text-sm sm:text-xs bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 px-4 sm:px-3 py-3 sm:py-1.5 min-h-[44px] sm:min-h-0 rounded-xl sm:rounded-lg flex items-center gap-1.5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed border border-indigo-500/30 font-medium"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className={`h-3.5 w-3.5 ${loadingSummary ? 'animate-spin' : ''}`} viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clipRule="evenodd" />
+                </svg>
+                Regenerate
+              </button>
+            </div>
+          </div>
+
+          {loadingSummary ? (
+            <div className="space-y-3 animate-pulse relative z-10 pt-2">
+              <div className="h-4 bg-indigo-500/20 rounded w-full"></div>
+              <div className="h-4 bg-indigo-500/20 rounded w-5/6"></div>
+              <div className="h-4 bg-indigo-500/20 rounded w-2/3"></div>
+            </div>
+          ) : (
+            <div className="relative z-10 p-4 sm:p-5 bg-white/60 dark:bg-slate-900/40 rounded-xl border border-indigo-200 dark:border-indigo-500/10 backdrop-blur-sm">
+              <p className={`text-sm sm:text-[15px] leading-relaxed whitespace-pre-wrap font-medium ${aiSummary?.startsWith('ERROR:') ? 'text-rose-500 dark:text-rose-400' : 'text-slate-800 dark:text-slate-200'}`}>
+                {aiSummary}
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Transactions Section */}
+      <div className="mt-6 pt-6 border-t border-slate-200 dark:border-slate-800/50">
+        <div className="flex items-center justify-between mb-4">
+          <h4 className="text-sm font-medium text-slate-300 uppercase tracking-wider">Recent Transactions</h4>
+          <span className="text-xs bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400 px-2 py-1 rounded-md">
+            {loading ? "..." : `Total Sent: ${result.transactionCount}`}
+          </span>
+        </div>
+        
+        {loading ? (
+          <div className="space-y-3">
+            {[...Array(3)].map((_, i) => (
+              <div key={i} className="h-16 bg-slate-200 dark:bg-slate-800/40 animate-pulse rounded-xl" />
+            ))}
+          </div>
+        ) : result.txError ? (
+          <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-xl text-amber-400/80 text-sm text-center">
+            {result.txError}
+          </div>
+        ) : result.transactions && result.transactions.length > 0 ? (
+          <div className="space-y-0 max-h-[420px] overflow-y-auto pr-2 custom-scrollbar relative mt-2">
+            {/* Continuous vertical timeline line */}
+            <div className="absolute top-6 bottom-6 left-[1.125rem] sm:left-[1.25rem] w-px bg-slate-200 dark:bg-slate-800 z-0"></div>
+            
+            {result.transactions.map((tx: any, idx: number) => {
+              const knownToLabel = tx.to ? KNOWN_ADDRESSES[tx.to.toLowerCase()] : null;
+              const actionLabel = knownToLabel || (tx.type === 'IN' ? 'Received' : 'Sent');
+              
+              let iconSvg;
+              let themeColor;
+              
+              if (actionLabel === 'DEX Swap') {
+                themeColor = 'text-purple-600 dark:text-purple-400 bg-purple-500/10 border-purple-500/30';
+                iconSvg = <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg>;
+              } else if (actionLabel.includes('Contract')) {
+                themeColor = 'text-teal-600 dark:text-teal-400 bg-teal-500/10 border-teal-500/30';
+                iconSvg = <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>;
+              } else if (tx.type === 'IN') {
+                themeColor = 'text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border-emerald-500/30';
+                iconSvg = <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" /></svg>;
+              } else {
+                themeColor = 'text-rose-600 dark:text-rose-400 bg-rose-500/10 border-rose-500/30';
+                iconSvg = <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" /></svg>;
+              }
+
+              // Format the date string nicely
+              const txDate = tx.timestamp ? new Date(tx.timestamp) : null;
+              const formattedDate = txDate && !isNaN(txDate.getTime()) 
+                ? txDate.toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }) 
+                : `Block ${tx.blockNumber}`;
+
+              return (
+                <div key={`${tx.hash}-${idx}`} className="group relative z-10 flex items-start gap-3 sm:gap-6 py-3 transition-all duration-300">
+                  {/* Timeline Dot */}
+                  <div className="shrink-0 relative w-9 h-9 sm:w-10 sm:h-10 mt-1 sm:mt-0.5 transition-transform duration-300 group-hover:scale-110 group-hover:shadow-[0_0_15px_-3px_rgba(99,102,241,0.4)] rounded-full">
+                    <div className="absolute inset-0 bg-white dark:bg-slate-950 rounded-full z-0"></div>
+                    <div className={`absolute inset-0 flex items-center justify-center rounded-full border-2 z-10 ${themeColor}`}>
+                      {iconSvg}
+                    </div>
+                  </div>
+                  
+                  {/* Content Card */}
+                  <div className="flex-1 flex flex-col sm:flex-row items-start sm:items-center justify-between p-3 sm:p-4 bg-white/50 dark:bg-slate-900/60 rounded-xl border border-slate-200 dark:border-slate-800/50 group-hover:bg-white dark:group-hover:bg-slate-800/80 group-hover:border-indigo-200/60 dark:group-hover:border-indigo-500/30 group-hover:-translate-y-0.5 group-hover:shadow-md dark:group-hover:shadow-[0_4px_20px_-5px_rgba(0,0,0,0.5)] transition-all duration-300 overflow-hidden w-full">
+                    <div className="flex flex-col items-start gap-1.5 min-w-0 w-full sm:w-auto">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className={`text-[9px] sm:text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-md border ${themeColor} shrink-0`}>
+                          {actionLabel}
+                        </span>
+                        <span className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 font-medium whitespace-nowrap">
+                          {formattedDate}
+                        </span>
+                      </div>
+                      <a href={`https://etherscan.io/tx/${tx.hash}`} target="_blank" rel="noopener noreferrer" className="text-xs sm:text-sm font-mono text-indigo-600 dark:text-indigo-400/80 hover:text-indigo-800 dark:hover:text-indigo-300 transition-colors truncate w-full block mt-0.5">
+                        {tx.hash}
+                      </a>
+                    </div>
+                    <div className="text-left sm:text-right shrink-0 mt-2.5 sm:mt-0 w-full sm:w-auto pt-2 sm:pt-0 border-t border-slate-100 dark:border-slate-800/50 sm:border-0">
+                      <p className="text-sm sm:text-[15px] font-bold text-slate-800 dark:text-slate-200 truncate">{tx.value} <span className="text-xs sm:text-sm font-medium text-slate-500 dark:text-slate-400">{tx.asset}</span></p>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="p-8 bg-slate-50 dark:bg-slate-900/40 rounded-xl border border-dashed border-slate-300 dark:border-slate-800/50 text-center flex flex-col items-center justify-center">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-slate-600 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M20 12H4M8 16l-4-4 4-4" /></svg>
+            <p className="text-slate-600 dark:text-slate-400 text-sm font-medium">This wallet has no recorded transaction history.</p>
+            <p className="text-slate-500 dark:text-slate-500 text-xs mt-1 italic">The address is completely dormant.</p>
+          </div>
+        )}
+      </div>
+
+      {/* Decoded Logs Section */}
+      <div className="mt-8 pt-8 border-t border-slate-200 dark:border-slate-800/50 flex-none">
+        <div className="flex items-center justify-between mb-6">
+          <h4 className="text-sm font-medium text-slate-300 uppercase tracking-wider flex items-center gap-2">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-indigo-400" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
+            </svg>
+            Decoded Transfer Logs
+          </h4>
+          <span className="text-xs text-slate-500">ethers.Interface</span>
+        </div>
+        
+        {loading ? (
+          <div className="space-y-4">
+            <div className="h-24 bg-slate-200 dark:bg-slate-800/40 animate-pulse rounded-2xl" />
+            <div className="h-24 bg-slate-200 dark:bg-slate-800/40 animate-pulse rounded-2xl" />
+          </div>
+        ) : result.logsError ? (
+          <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-xl text-amber-400/80 text-sm text-center">
+            {result.logsError}
+          </div>
+        ) : result.decodedLogs && result.decodedLogs.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[420px] overflow-y-auto pr-2 custom-scrollbar pb-2">
+            {result.decodedLogs.map((log: any, idx: number) => {
+              const isSent = log.from.toLowerCase() === result.address.toLowerCase();
+              const isReceived = log.to.toLowerCase() === result.address.toLowerCase();
+              const label = isSent ? 'Sent' : (isReceived ? 'Received' : 'Transferred');
+              const labelColor = isSent ? 'text-rose-400 bg-rose-500/10 border-rose-500/20' : (isReceived ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20' : 'text-slate-400 bg-slate-500/10 border-slate-500/20');
+              
+              const numAmount = parseFloat(log.amountRaw);
+              let displayAmount = log.amountRaw;
+              if (!isNaN(numAmount)) {
+                displayAmount = numAmount.toLocaleString('en-US', { maximumFractionDigits: 18 });
+              }
+
+              return (
+                <div key={idx} className="p-5 bg-white dark:bg-slate-900/80 rounded-2xl border border-slate-200 dark:border-slate-700/50 hover:border-indigo-300 dark:hover:border-indigo-500/50 transition-colors duration-300 group">
+                  <div className="flex items-center justify-between mb-4">
+                    <span className={`text-xs font-semibold px-2 py-1 rounded-md border ${labelColor}`}>
+                      {label}
+                    </span>
+                    <a href={`https://etherscan.io/tx/${log.transactionHash}`} target="_blank" rel="noopener noreferrer" className="text-xs text-indigo-600 dark:text-indigo-400/70 hover:text-indigo-800 dark:hover:text-indigo-300 transition-colors">
+                      {log.transactionHash.substring(0, 10)}...
+                    </a>
+                  </div>
+                  <div className="space-y-2 mb-4">
+                    <div className="flex flex-col">
+                      <span className="text-[10px] text-slate-500 dark:text-slate-500 uppercase">From</span>
+                      <span className="text-xs text-slate-700 dark:text-slate-300 font-mono truncate" title={log.from}>
+                        {KNOWN_ADDRESSES[log.from.toLowerCase()] || log.from}
+                      </span>
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-[10px] text-slate-500 dark:text-slate-500 uppercase">To</span>
+                      <span className="text-xs text-slate-700 dark:text-slate-300 font-mono truncate" title={log.to}>
+                        {KNOWN_ADDRESSES[log.to.toLowerCase()] || log.to}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="pt-3 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between">
+                    <span className="text-xs text-slate-500 uppercase">Amount</span>
+                    <span className="text-sm font-bold text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-purple-600 dark:from-indigo-400 dark:to-purple-400 truncate max-w-[120px] sm:max-w-[150px]" title={`${log.amountRaw} ${log.symbol || 'ERC20'}`}>
+                      {displayAmount} <span className="text-xs text-indigo-600 dark:text-indigo-300/80">{log.symbol || 'ERC20'}</span>
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="p-8 text-center bg-slate-50 dark:bg-slate-900/40 rounded-2xl border border-slate-300 dark:border-slate-800/50 border-dashed">
+            <p className="text-slate-600 dark:text-slate-400 text-sm">No ERC-20 Transfer logs found in recent transactions</p>
+            <p className="text-slate-500 dark:text-slate-500 text-xs mt-1">Raw logs returned no matching event signatures</p>
+          </div>
+        )}
+      </div>
+
+    </div>
+  );
+}

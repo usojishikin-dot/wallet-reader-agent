@@ -28,7 +28,6 @@ export async function POST(request: Request) {
     // Fetch receipts concurrently
     const receipts = await Promise.all(
       hashesToProcess.map(hash => provider.getTransactionReceipt(hash).catch(err => {
-        console.warn(`Failed to fetch receipt for ${hash}`, err);
         return null;
       }))
     );
@@ -96,7 +95,6 @@ export async function POST(request: Request) {
       },
     });
   } catch (error: any) {
-    console.error("Error decoding logs:", error);
     return NextResponse.json({ error: 'Failed to decode transaction logs.' }, { status: 500 });
   }
 }

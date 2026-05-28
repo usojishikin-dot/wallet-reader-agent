@@ -16,7 +16,6 @@ export async function POST(request: Request) {
 
     const rpcUrl = process.env.ALCHEMY_RPC_URL;
     if (!rpcUrl) {
-       console.error("ALCHEMY_RPC_URL environment variable is not set.");
        return NextResponse.json({ error: 'Server configuration error: RPC URL missing' }, { status: 500 });
     }
 
@@ -40,7 +39,6 @@ export async function POST(request: Request) {
       },
     });
   } catch (error: any) {
-    console.error("Error fetching balance:", error);
     return NextResponse.json({ error: 'Failed to process request. Please check the address.' }, { status: 500 });
   }
 }

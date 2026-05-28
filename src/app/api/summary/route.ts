@@ -58,9 +58,7 @@ IMPORTANT: Do NOT use any Markdown formatting in your response. Do not use aster
     });
 
     if (!response.ok) {
-      const errorText = await response.text();
-      console.error("Gemini API error:", errorText);
-      return NextResponse.json({ error: 'Failed to generate summary from AI provider' }, { status: 502 });
+      return NextResponse.json({ error: 'Failed to generate AI summary' }, { status: 500 });
     }
 
     const data = await response.json();
@@ -78,7 +76,6 @@ IMPORTANT: Do NOT use any Markdown formatting in your response. Do not use aster
     });
 
   } catch (error: any) {
-    console.error("Error in AI summary route:", error);
-    return NextResponse.json({ error: 'Internal server error while generating summary' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to process AI summary request.' }, { status: 500 });
   }
 }

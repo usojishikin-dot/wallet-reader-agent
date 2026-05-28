@@ -87,7 +87,6 @@ export async function POST(request: Request) {
       },
     });
   } catch (error: any) {
-    console.error("Error fetching transactions:", error);
-    return NextResponse.json({ error: 'Failed to process transactions request. Please check the RPC connection.' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to process transactions request. Please check the address.' }, { status: 500 });
   }
 }

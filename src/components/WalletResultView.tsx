@@ -87,14 +87,32 @@ export default function WalletResultView({
   return (
     <div className="p-4 sm:p-6 md:p-8 bg-white/70 dark:bg-slate-900/50 backdrop-blur-xl border border-slate-200/80 dark:border-slate-800 rounded-2xl sm:rounded-3xl shadow-xl dark:shadow-2xl animate-in fade-in slide-in-from-bottom-4 duration-500 relative z-30 w-full h-full flex flex-col">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 sm:mb-8">
-        <h3 className="text-lg sm:text-xl font-semibold text-slate-900 dark:text-slate-200 flex items-center gap-3">
-          {loading ? (
-            <div className="w-4 h-4 rounded-full border-2 border-slate-300 dark:border-slate-600 border-t-indigo-500 animate-spin" />
-          ) : (
-            <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-          )}
-          {loading ? "Analyzing..." : "Wallet Analysis Complete"}
-        </h3>
+        <div className="flex flex-col gap-1">
+          <h3 className="text-lg sm:text-xl font-semibold text-slate-900 dark:text-slate-200 flex items-center gap-3">
+            {loading ? (
+              <div className="w-4 h-4 rounded-full border-2 border-slate-300 dark:border-slate-600 border-t-indigo-500 animate-spin" />
+            ) : (
+              <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            )}
+            {loading ? "Analyzing..." : "Wallet Analysis Complete"}
+          </h3>
+          
+          <div className="mt-2 sm:mt-3">
+            <span className="text-xs sm:text-sm text-slate-500 uppercase tracking-wider font-semibold">Total Portfolio Value</span>
+            {loading ? (
+              <div className="h-8 sm:h-10 w-40 sm:w-48 bg-slate-200 dark:bg-slate-800 animate-pulse rounded-lg mt-1" />
+            ) : result?.pricesError ? (
+              <div className="text-base sm:text-lg font-medium text-amber-600 dark:text-amber-500 mt-1 flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                Price unavailable
+              </div>
+            ) : (
+              <div className="text-2xl sm:text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-emerald-500 to-teal-500 dark:from-emerald-400 dark:to-teal-400 mt-0.5 sm:mt-1">
+                ${(result?.totalUsdValue || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </div>
+            )}
+          </div>
+        </div>
         
         {!loading && result && (
           <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
@@ -268,6 +286,39 @@ export default function WalletResultView({
           )}
         </div>
         
+        {/* Degen Score Card */}
+        <div className="p-4 bg-slate-50/80 dark:bg-slate-900/80 rounded-xl border border-fuchsia-200/50 dark:border-fuchsia-800/30 transition-colors duration-300 flex flex-col justify-center overflow-hidden relative group">
+          <div className="absolute top-0 right-0 w-16 h-16 bg-fuchsia-500/10 dark:bg-fuchsia-400/5 rounded-bl-full -mr-8 -mt-8 transition-transform group-hover:scale-110" />
+          <p className="text-xs text-fuchsia-600 dark:text-fuchsia-400 uppercase tracking-wider font-bold mb-1 flex items-center gap-1.5">
+            🔥 Degen Score
+          </p>
+          {loading ? (
+            <div className="space-y-1.5 mt-1">
+               <div className="h-6 w-16 bg-slate-200 dark:bg-slate-800 animate-pulse rounded" />
+               <div className="h-3 w-24 bg-slate-200 dark:bg-slate-800 animate-pulse rounded" />
+            </div>
+          ) : (
+            <div className="mt-1">
+              <p className="font-black text-2xl sm:text-3xl text-transparent bg-clip-text bg-gradient-to-r from-fuchsia-600 to-purple-600 dark:from-fuchsia-400 dark:to-purple-400">
+                {result.degenScore} <span className="text-sm font-medium text-slate-500 dark:text-slate-400">/ 100</span>
+              </p>
+              <div className="flex items-center justify-between mt-1">
+                <p className="text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-300 truncate" title={result.degenLabel}>
+                  {result.degenLabel}
+                </p>
+                <a 
+                  href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(`I just scored a ${result.degenScore}/100 on the Degen Meter! My rank is ${result.degenLabel}. Check your wallet at WalletReader!`)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="p-1.5 rounded-md bg-fuchsia-100 dark:bg-fuchsia-500/20 text-fuchsia-600 dark:text-fuchsia-400 hover:bg-fuchsia-200 dark:hover:bg-fuchsia-500/30 transition-colors shrink-0"
+                  title="Share to X"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+                </a>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* AI Summary Section */}
@@ -342,17 +393,17 @@ export default function WalletResultView({
         </div>
         
         {loading ? (
-          <div className="space-y-3">
+          <div className="space-y-3 h-[420px]">
             {[...Array(3)].map((_, i) => (
               <div key={i} className="h-16 bg-slate-200 dark:bg-slate-800/40 animate-pulse rounded-xl" />
             ))}
           </div>
         ) : result.txError ? (
-          <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-xl text-amber-400/80 text-sm text-center">
+          <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-xl text-amber-400/80 text-sm text-center h-[420px] flex items-center justify-center">
             {result.txError}
           </div>
         ) : result.transactions && result.transactions.length > 0 ? (
-          <div className="space-y-0 max-h-[420px] overflow-y-auto pr-2 custom-scrollbar relative mt-2">
+          <div className="space-y-0 h-[420px] overflow-y-auto pr-2 custom-scrollbar relative mt-2">
             {/* Continuous vertical timeline line */}
             <div className="absolute top-6 bottom-6 left-[1.125rem] sm:left-[1.25rem] w-px bg-slate-200 dark:bg-slate-800 z-0"></div>
             
@@ -417,7 +468,7 @@ export default function WalletResultView({
             })}
           </div>
         ) : (
-          <div className="p-8 bg-slate-50 dark:bg-slate-900/40 rounded-xl border border-dashed border-slate-300 dark:border-slate-800/50 text-center flex flex-col items-center justify-center">
+          <div className="p-8 bg-slate-50 dark:bg-slate-900/40 rounded-xl border border-dashed border-slate-300 dark:border-slate-800/50 text-center flex flex-col items-center justify-center h-[420px]">
             <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-slate-600 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M20 12H4M8 16l-4-4 4-4" /></svg>
             <p className="text-slate-600 dark:text-slate-400 text-sm font-medium">This wallet has no recorded transaction history.</p>
             <p className="text-slate-500 dark:text-slate-500 text-xs mt-1 italic">The address is completely dormant.</p>
@@ -438,16 +489,16 @@ export default function WalletResultView({
         </div>
         
         {loading ? (
-          <div className="space-y-4">
+          <div className="space-y-4 h-[300px]">
             <div className="h-24 bg-slate-200 dark:bg-slate-800/40 animate-pulse rounded-2xl" />
             <div className="h-24 bg-slate-200 dark:bg-slate-800/40 animate-pulse rounded-2xl" />
           </div>
         ) : result.logsError ? (
-          <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-xl text-amber-400/80 text-sm text-center">
+          <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-xl text-amber-400/80 text-sm text-center h-[300px] flex items-center justify-center">
             {result.logsError}
           </div>
         ) : result.decodedLogs && result.decodedLogs.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[420px] overflow-y-auto pr-2 custom-scrollbar pb-2">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 h-[300px] overflow-y-auto pr-2 custom-scrollbar pb-2 content-start">
             {result.decodedLogs.map((log: any, idx: number) => {
               const isSent = log.from.toLowerCase() === result.address.toLowerCase();
               const isReceived = log.to.toLowerCase() === result.address.toLowerCase();
@@ -495,7 +546,7 @@ export default function WalletResultView({
             })}
           </div>
         ) : (
-          <div className="p-8 text-center bg-slate-50 dark:bg-slate-900/40 rounded-2xl border border-slate-300 dark:border-slate-800/50 border-dashed">
+          <div className="p-8 text-center bg-slate-50 dark:bg-slate-900/40 rounded-2xl border border-slate-300 dark:border-slate-800/50 border-dashed h-[300px] flex flex-col items-center justify-center">
             <p className="text-slate-600 dark:text-slate-400 text-sm">No ERC-20 Transfer logs found in recent transactions</p>
             <p className="text-slate-500 dark:text-slate-500 text-xs mt-1">Raw logs returned no matching event signatures</p>
           </div>

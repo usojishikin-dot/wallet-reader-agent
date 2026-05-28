@@ -44,6 +44,51 @@ export default function WalletDashboard({ initialAddress }: { initialAddress?: s
     }
   }, [initialAddress]);
 
+  const [savedWallets, setSavedWallets] = useState<string[]>([]);
+  const [activeDropdown, setActiveDropdown] = useState<number | null>(null);
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem('savedWallets');
+      if (stored) {
+        setSavedWallets(JSON.parse(stored));
+      }
+    } catch (e) {
+      console.error('Failed to load saved wallets', e);
+    }
+  }, []);
+
+  const toggleSaveWallet = (address: string) => {
+    if (!address) return;
+    setSavedWallets(prev => {
+      let newWallets;
+      if (prev.includes(address)) {
+        newWallets = prev.filter(a => a !== address);
+      } else {
+        newWallets = [...prev, address];
+      }
+      try {
+        localStorage.setItem('savedWallets', JSON.stringify(newWallets));
+      } catch (e) {
+        console.warn('localStorage is disabled or full (likely private mode). Save will only persist for this session.');
+      }
+      return newWallets;
+    });
+  };
+
+  const removeSavedWallet = (address: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setSavedWallets(prev => {
+      const newWallets = prev.filter(a => a !== address);
+      try {
+        localStorage.setItem('savedWallets', JSON.stringify(newWallets));
+      } catch (e) {
+        console.warn('localStorage is disabled (likely private mode).');
+      }
+      return newWallets;
+    });
+  };
+
   const resetWallet = (walletIndex: number) => {
     const defaultState = { result: null, loading: false, error: "", aiSummary: null, loadingSummary: false };
     if (walletIndex === 1) setWallet1Data(defaultState);
@@ -122,10 +167,12 @@ export default function WalletDashboard({ initialAddress }: { initialAddress?: s
       loading: true,
       error: "",
       aiSummary: null,
+      loadingSummary: true,
       result: {
         status: "Fetching...", network: "Ethereum", balance: "0.00", usdcBalance: "0.00", daiBalance: "0.00",
         wethBalance: "0.00", pepeBalance: "0.00", transactions: [], transactionCount: 0, txError: "",
         decodedLogs: [], logsError: "", address: trimmedAddress, healthScore: 0, concentratedRiskToken: null,
+        totalUsdValue: 0, pricesError: false, degenScore: 0, degenLabel: "", estimatedGasBurnedEth: 0,
       }
     });
 
@@ -134,10 +181,11 @@ export default function WalletDashboard({ initialAddress }: { initialAddress?: s
         return fetch(url, { ...options, signal: AbortSignal.timeout(30000) });
       };
 
-      const [ethRes, tokensRes, txRes] = await Promise.all([
+      const [ethRes, tokensRes, txRes, pricesRes] = await Promise.all([
         fetchWithTimeout("/api/balance", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ address: trimmedAddress }) }).catch(() => null),
         fetchWithTimeout("/api/tokens", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ address: trimmedAddress }) }).catch(() => null),
-        fetchWithTimeout("/api/transactions", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ address: trimmedAddress }) }).catch(() => null)
+        fetchWithTimeout("/api/transactions", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ address: trimmedAddress }) }).catch(() => null),
+        fetchWithTimeout("/api/prices", { method: "GET" }).catch(() => null)
       ]);
 
       let ethData = { data: { balance: "Error", network: "Ethereum", status: "Failed" } };
@@ -199,25 +247,62 @@ export default function WalletDashboard({ initialAddress }: { initialAddress?: s
         healthScore = diversityScore + tokenScore + activityScore;
       }
 
+      let prices = null;
+      let pricesError = false;
+      if (pricesRes && pricesRes.ok) {
+        const pData = await pricesRes.json();
+        if (pData.success && pData.data) prices = pData.data;
+        else pricesError = true;
+      } else {
+        pricesError = true;
+      }
+
+      const ethPrice = prices?.ethereum?.usd || 0;
+      const usdcPrice = prices?.["usd-coin"]?.usd || 0;
+      const daiPrice = prices?.dai?.usd || 0;
+      const wethPrice = prices?.weth?.usd || ethPrice;
+      const pepePrice = prices?.pepe?.usd || 0;
+
       const rawEth = parseFloat(ethData.data?.balance?.replace(/,/g, '') || "0");
       const rawUsdc = parseFloat(tokenData.data?.balances?.USDC?.replace(/,/g, '') || "0");
       const rawDai = parseFloat(tokenData.data?.balances?.DAI?.replace(/,/g, '') || "0");
       const rawWeth = parseFloat(tokenData.data?.balances?.WETH?.replace(/,/g, '') || "0");
       const rawPepe = parseFloat(tokenData.data?.balances?.PEPE?.replace(/,/g, '') || "0");
 
-      const mockTotalVal = (rawEth * 3000) + (rawWeth * 3000) + rawUsdc + rawDai + (rawPepe * 0.00001);
+      const mockTotalVal = (rawEth * ethPrice) + (rawWeth * wethPrice) + (rawUsdc * usdcPrice) + (rawDai * daiPrice) + (rawPepe * pepePrice);
       
       let concentratedRiskToken = null;
       if (mockTotalVal > 0) {
-        if ((rawEth * 3000) / mockTotalVal > 0.5) concentratedRiskToken = 'ETH';
-        else if ((rawWeth * 3000) / mockTotalVal > 0.5) concentratedRiskToken = 'WETH';
-        else if (rawUsdc / mockTotalVal > 0.5) concentratedRiskToken = 'USDC';
-        else if (rawDai / mockTotalVal > 0.5) concentratedRiskToken = 'DAI';
-        else if ((rawPepe * 0.00001) / mockTotalVal > 0.5) concentratedRiskToken = 'PEPE';
+        if ((rawEth * ethPrice) / mockTotalVal > 0.5) concentratedRiskToken = 'ETH';
+        else if ((rawWeth * wethPrice) / mockTotalVal > 0.5) concentratedRiskToken = 'WETH';
+        else if ((rawUsdc * usdcPrice) / mockTotalVal > 0.5) concentratedRiskToken = 'USDC';
+        else if ((rawDai * daiPrice) / mockTotalVal > 0.5) concentratedRiskToken = 'DAI';
+        else if ((rawPepe * pepePrice) / mockTotalVal > 0.5) concentratedRiskToken = 'PEPE';
       }
 
       if (concentratedRiskToken) {
         healthScore = Math.max(0, healthScore - 20);
+      }
+
+      let degenScore = 0;
+      let degenLabel = "Complete Normie 👔";
+      const totalSentForDegen = txData.data?.transactionCount || 0;
+      const estimatedGasBurnedEth = totalSentForDegen * 0.002;
+
+      if (mockTotalVal > 0 || totalSentForDegen > 0) {
+        const pepeVal = rawPepe * pepePrice;
+        const memePercent = mockTotalVal > 0 ? (pepeVal / mockTotalVal) * 100 : 0;
+        
+        const freqScore = Math.min(totalSentForDegen, 500) / 5;
+        const gasScore = Math.min(estimatedGasBurnedEth * 20, 100);
+
+        degenScore = Math.round((memePercent * 0.5) + (freqScore * 0.3) + (gasScore * 0.2));
+
+        if (degenScore > 85) degenLabel = "Maximum Ape 🦍";
+        else if (degenScore > 65) degenLabel = "Diamond Hands 💎";
+        else if (degenScore > 40) degenLabel = "Based Chad 🍷";
+        else if (degenScore > 15) degenLabel = "Paper Hands 🧻";
+        else degenLabel = "Complete Normie 👔";
       }
 
       updateWalletData(walletIndex, {
@@ -234,6 +319,11 @@ export default function WalletDashboard({ initialAddress }: { initialAddress?: s
           logsError,
           healthScore,
           concentratedRiskToken,
+          totalUsdValue: mockTotalVal,
+          pricesError,
+          degenScore,
+          degenLabel,
+          estimatedGasBurnedEth,
         }
       });
     } catch (err: any) {
@@ -250,6 +340,7 @@ export default function WalletDashboard({ initialAddress }: { initialAddress?: s
 
   const isAnyLoading = wallet1Data.loading || wallet2Data.loading;
   const showResults = wallet1Data.result || wallet2Data.result;
+  const isInitialLoading = isAnyLoading && !showResults;
 
   return (
     <div className="min-h-screen flex flex-col relative overflow-hidden bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-50 font-sans transition-colors duration-500">
@@ -257,7 +348,7 @@ export default function WalletDashboard({ initialAddress }: { initialAddress?: s
         <div className="absolute -top-[30%] -left-[10%] w-[120%] h-[120%] bg-[radial-gradient(ellipse_at_center,rgba(99,102,241,0.15)_0%,rgba(0,0,0,0)_50%)]" />
       </div>
 
-      <div className={`fixed top-24 left-1/2 -translate-x-1/2 z-[60] transition-all duration-500 ${isAnyLoading ? 'opacity-100 translate-y-0 scale-100' : 'opacity-0 -translate-y-8 scale-95 pointer-events-none'}`}>
+      <div className={`fixed top-24 left-1/2 -translate-x-1/2 z-[60] transition-all duration-500 ${isInitialLoading ? 'opacity-100 translate-y-0 scale-100' : 'opacity-0 -translate-y-8 scale-95 pointer-events-none'}`}>
         <div className="bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl border border-indigo-500/30 shadow-[0_10px_40px_-10px_rgba(99,102,241,0.5)] rounded-full px-5 py-2.5 flex items-center gap-3">
           <div className="relative flex items-center justify-center w-5 h-5">
             <div className="absolute inset-0 border-2 border-indigo-500/20 rounded-full"></div>
@@ -271,13 +362,19 @@ export default function WalletDashboard({ initialAddress }: { initialAddress?: s
 
       <header className="fixed top-0 left-0 right-0 z-50 w-full border-b border-slate-200/80 dark:border-slate-800/50 bg-white/50 dark:bg-slate-950/50 backdrop-blur-md">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-2 cursor-pointer" onClick={() => { setIsComparisonMode(false); router.push('/'); }}>
-            <div className="w-8 h-8 rounded-lg bg-indigo-500/20 border border-indigo-500/50 flex items-center justify-center">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-indigo-600 dark:text-indigo-400" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M10 2a4 4 0 00-4 4v1H5a1 1 0 00-.994.89l-1 9A1 1 0 004 18h12a1 1 0 00.994-1.11l-1-9A1 1 0 0015 7h-1V6a4 4 0 00-4-4zm2 5V6a2 2 0 10-4 0v1h4zm-6 3a1 1 0 112 0 1 1 0 01-2 0zm7-1a1 1 0 100 2 1 1 0 000-2z" clipRule="evenodd" />
-              </svg>
+          <div className="flex items-center gap-2.5 cursor-pointer group" onClick={() => { setIsComparisonMode(false); router.push('/'); }}>
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-indigo-600 to-purple-600 p-[1px] shadow-lg shadow-indigo-500/20 group-hover:shadow-indigo-500/40 transition-shadow">
+              <div className="w-full h-full rounded-[11px] bg-white dark:bg-slate-950 flex items-center justify-center relative overflow-hidden">
+                <div className="absolute inset-0 bg-gradient-to-tr from-indigo-500/10 to-purple-500/10" />
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-indigo-600 dark:text-indigo-400 relative z-10 group-hover:scale-110 transition-transform" viewBox="0 0 20 20" fill="currentColor">
+                  <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
+                  <path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" />
+                </svg>
+              </div>
             </div>
-            <h1 className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100">Wallet <span className="text-indigo-400">Reader</span></h1>
+            <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100 flex items-center">
+              Wallet<span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-500 to-purple-500 ml-0.5">Reader</span>
+            </h1>
           </div>
           <div className="flex items-center gap-4">
             <ThemeToggle />
@@ -338,9 +435,46 @@ export default function WalletDashboard({ initialAddress }: { initialAddress?: s
                         if (wallet1Data.error) updateWalletData(1, { error: "" });
                       }}
                       placeholder="0x..."
-                      className="w-full bg-slate-100/50 dark:bg-slate-950/50 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 text-base sm:text-lg rounded-2xl px-4 sm:px-5 py-3 sm:py-4 outline-none transition-all duration-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 group-hover:border-slate-300 dark:group-hover:border-slate-600"
+                      className="w-full bg-slate-100/50 dark:bg-slate-950/50 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 text-base sm:text-lg rounded-2xl pl-4 sm:pl-5 pr-20 py-3 sm:py-4 outline-none transition-all duration-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 group-hover:border-slate-300 dark:group-hover:border-slate-600"
                     />
                     <div className="absolute inset-0 -z-10 rounded-2xl bg-gradient-to-r from-indigo-500 to-purple-500 opacity-0 blur transition-opacity duration-500 group-focus-within:opacity-20" />
+                    
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-0.5">
+                      <button 
+                        type="button" 
+                        onClick={() => toggleSaveWallet(address1)}
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-amber-500 hover:bg-slate-200/50 dark:hover:bg-slate-800/50 transition-colors"
+                        title={savedWallets.includes(address1) ? "Remove from Saved" : "Save Wallet"}
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill={savedWallets.includes(address1) ? "#f59e0b" : "none"} stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                        </svg>
+                      </button>
+                      <button 
+                        type="button"
+                        onClick={() => setActiveDropdown(activeDropdown === 1 ? null : 1)}
+                        className={`p-1.5 rounded-lg transition-colors ${activeDropdown === 1 ? 'text-indigo-500 bg-indigo-50 dark:bg-indigo-500/10' : 'text-slate-400 hover:bg-slate-200/50 dark:hover:bg-slate-800/50'}`}
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                        </svg>
+                      </button>
+                    </div>
+
+                    {activeDropdown === 1 && savedWallets.length > 0 && (
+                      <div className="absolute z-50 top-full mt-2 w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl overflow-hidden animate-in fade-in slide-in-from-top-2">
+                        <div className="max-h-60 overflow-y-auto custom-scrollbar">
+                          {savedWallets.map(sw => (
+                            <div key={sw} className="flex items-center justify-between p-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer border-b border-slate-100 dark:border-slate-800/50 last:border-0 transition-colors" onClick={() => { setAddress1(sw); setActiveDropdown(null); }}>
+                              <span className="text-sm font-mono text-slate-700 dark:text-slate-300 truncate">{sw}</span>
+                              <button type="button" onClick={(e) => removeSavedWallet(sw, e)} className="p-1.5 text-slate-400 hover:text-red-500 transition-colors">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                   {wallet1Data.error && (
                     <div className="mt-2 p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 text-xs sm:text-sm animate-in fade-in duration-300 flex items-start gap-2 relative z-30">
@@ -367,9 +501,46 @@ export default function WalletDashboard({ initialAddress }: { initialAddress?: s
                           if (wallet2Data.error) updateWalletData(2, { error: "" });
                         }}
                         placeholder="0x..."
-                        className="w-full bg-slate-100/50 dark:bg-slate-950/50 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 text-base sm:text-lg rounded-2xl px-4 sm:px-5 py-3 sm:py-4 outline-none transition-all duration-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 group-hover:border-slate-300 dark:group-hover:border-slate-600"
+                        className="w-full bg-slate-100/50 dark:bg-slate-950/50 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 text-base sm:text-lg rounded-2xl pl-4 sm:pl-5 pr-20 py-3 sm:py-4 outline-none transition-all duration-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 group-hover:border-slate-300 dark:group-hover:border-slate-600"
                       />
                       <div className="absolute inset-0 -z-10 rounded-2xl bg-gradient-to-r from-indigo-500 to-purple-500 opacity-0 blur transition-opacity duration-500 group-focus-within:opacity-20" />
+                      
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-0.5">
+                        <button 
+                          type="button" 
+                          onClick={() => toggleSaveWallet(address2)}
+                          className="p-1.5 rounded-lg text-slate-400 hover:text-amber-500 hover:bg-slate-200/50 dark:hover:bg-slate-800/50 transition-colors"
+                          title={savedWallets.includes(address2) ? "Remove from Saved" : "Save Wallet"}
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill={savedWallets.includes(address2) ? "#f59e0b" : "none"} stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                          </svg>
+                        </button>
+                        <button 
+                          type="button"
+                          onClick={() => setActiveDropdown(activeDropdown === 2 ? null : 2)}
+                          className={`p-1.5 rounded-lg transition-colors ${activeDropdown === 2 ? 'text-indigo-500 bg-indigo-50 dark:bg-indigo-500/10' : 'text-slate-400 hover:bg-slate-200/50 dark:hover:bg-slate-800/50'}`}
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                            <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                          </svg>
+                        </button>
+                      </div>
+
+                      {activeDropdown === 2 && savedWallets.length > 0 && (
+                        <div className="absolute z-50 top-full mt-2 w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl overflow-hidden animate-in fade-in slide-in-from-top-2">
+                          <div className="max-h-60 overflow-y-auto custom-scrollbar">
+                            {savedWallets.map(sw => (
+                              <div key={sw} className="flex items-center justify-between p-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer border-b border-slate-100 dark:border-slate-800/50 last:border-0 transition-colors" onClick={() => { setAddress2(sw); setActiveDropdown(null); }}>
+                                <span className="text-sm font-mono text-slate-700 dark:text-slate-300 truncate">{sw}</span>
+                                <button type="button" onClick={(e) => removeSavedWallet(sw, e)} className="p-1.5 text-slate-400 hover:text-red-500 transition-colors">
+                                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
                     {wallet2Data.error && (
                       <div className="mt-2 p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 text-xs sm:text-sm animate-in fade-in duration-300 flex items-start gap-2 relative z-30">

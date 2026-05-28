@@ -13,8 +13,24 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Wallet Analytics",
-  description: "Advanced AI-powered cryptocurrency wallet decoder and transaction analyzer.",
+  title: "WalletReader | Advanced Crypto Analytics",
+  description: "Decode any Ethereum wallet instantly. Uncover AI-powered behavior patterns, real-time balances, token concentration risk, and Degen Scores.",
+  keywords: ["Crypto", "Wallet Analytics", "Ethereum", "Web3", "Portfolio Tracker", "AI Blockchain Analysis"],
+  openGraph: {
+    title: "WalletReader | Advanced Crypto Analytics",
+    description: "Decode any Ethereum wallet instantly. Uncover AI-powered behavior patterns, real-time balances, token concentration risk, and Degen Scores.",
+    url: "https://walletreader.app",
+    siteName: "WalletReader",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "WalletReader | Advanced Crypto Analytics",
+    description: "Decode any Ethereum wallet instantly. Uncover AI-powered behavior patterns, real-time balances, and Degen Scores.",
+  },
+  icons: {
+    icon: "/icon.svg",
+  },
 };
 
 import { ThemeProvider } from "@/components/ThemeProvider";

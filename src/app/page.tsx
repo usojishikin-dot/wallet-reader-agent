@@ -231,7 +231,7 @@ export default function Home() {
             <h1 className="text-xl font-bold tracking-tight text-slate-100">Wallet <span className="text-indigo-400">Reader</span></h1>
           </div>
           <div className="flex items-center gap-4">
-            <a href="https://github.com/usojishikin-dot/wallet-reader-agent" target="_blank" rel="noreferrer" className="text-slate-400 hover:text-slate-200 transition-colors">
+            <a href="https://github.com/usojishikin-dot/wallet-reader-agent" target="_blank" rel="noreferrer" className="text-slate-400 hover:text-slate-200 transition-colors p-2 -mr-2 min-w-[44px] min-h-[44px] flex items-center justify-center">
               <svg fill="currentColor" viewBox="0 0 24 24" className="w-6 h-6"><path fillRule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" clipRule="evenodd"></path></svg>
             </a>
           </div>
@@ -244,10 +244,10 @@ export default function Home() {
         {/* Dynamic Hero Search Section */}
         <div className={`transition-all duration-700 ease-in-out w-full max-w-3xl mx-auto ${result ? 'mb-12 mt-4' : 'flex-grow flex flex-col justify-center pb-20'}`}>
           <div className="text-center mb-8">
-            <h2 className="text-4xl md:text-5xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 via-purple-400 to-indigo-400 tracking-tight mb-4">
+            <h2 className="text-3xl sm:text-4xl md:text-5xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 via-purple-400 to-indigo-400 tracking-tight mb-4">
               Decode Any Wallet
             </h2>
-            <p className="text-lg text-slate-400 max-w-xl mx-auto">
+            <p className="text-base sm:text-lg text-slate-400 max-w-xl mx-auto px-2">
               Drop in an Ethereum address to instantly analyze its balances, tokens, and AI-driven behavior patterns.
             </p>
           </div>
@@ -273,7 +273,7 @@ export default function Home() {
                     if (error) setError("");
                   }}
                   placeholder="0x..."
-                  className="w-full bg-slate-950/50 border border-slate-700 text-slate-100 text-lg rounded-2xl px-5 py-4 outline-none transition-all duration-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 group-hover:border-slate-600"
+                  className="w-full bg-slate-950/50 border border-slate-700 text-slate-100 text-base sm:text-lg rounded-2xl px-4 sm:px-5 py-3 sm:py-4 outline-none transition-all duration-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 group-hover:border-slate-600"
                 />
                 <div className="absolute inset-0 -z-10 rounded-2xl bg-gradient-to-r from-indigo-500 to-purple-500 opacity-0 blur transition-opacity duration-500 group-focus-within:opacity-20" />
               </div>
@@ -316,8 +316,8 @@ export default function Home() {
 
         {/* Results Section */}
         {result && (
-          <div className="mt-12 p-8 bg-slate-900/50 backdrop-blur-xl border border-slate-800 rounded-3xl shadow-2xl animate-in fade-in slide-in-from-bottom-4 duration-500 relative z-30 w-full">
-            <h3 className="text-xl font-semibold text-slate-200 mb-8 flex items-center gap-3">
+          <div className="mt-12 p-4 sm:p-6 md:p-8 bg-slate-900/50 backdrop-blur-xl border border-slate-800 rounded-2xl sm:rounded-3xl shadow-2xl animate-in fade-in slide-in-from-bottom-4 duration-500 relative z-30 w-full">
+            <h3 className="text-lg sm:text-xl font-semibold text-slate-200 mb-6 sm:mb-8 flex items-center gap-3">
                 {loading ? (
                   <div className="w-4 h-4 rounded-full border-2 border-slate-600 border-t-indigo-500 animate-spin" />
                 ) : (
@@ -327,7 +327,7 @@ export default function Home() {
               </h3>
               
               {/* Full Width Horizontal Grid */}
-              <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3 sm:gap-4">
                 
                 {/* Status */}
                 <div className="p-4 bg-slate-900/80 rounded-xl border border-slate-800/50 transition-colors duration-300 flex flex-col justify-center">
@@ -370,18 +370,43 @@ export default function Home() {
                 {/* Address */}
                 <div className="p-4 bg-slate-900/80 rounded-xl border border-slate-800/50 transition-colors duration-300 flex flex-col justify-center">
                   <p className="text-xs text-slate-500 uppercase tracking-wider mb-2">Address</p>
-                  <p className="text-sm text-slate-300 font-mono break-all truncate" title={result.address}>{result.address}</p>
+                  <p className="text-sm text-slate-300 font-mono truncate" title={result.address}>{result.address}</p>
                 </div>
                 
                 {/* Wallet Health Score */}
                 <div 
-                  className="p-4 bg-slate-900/80 rounded-xl border border-slate-800/50 transition-colors duration-300 flex flex-col justify-center cursor-help"
-                  title="Score breakdown: Transaction diversity (40%), Token diversity (30%), and total network activity (30%)."
+                  tabIndex={0}
+                  className="p-4 bg-slate-900/80 rounded-xl border border-slate-800/50 transition-colors duration-300 flex flex-col justify-center cursor-help relative group focus:outline-none focus:ring-1 focus:ring-slate-500"
                 >
+                  {/* Custom Tooltip */}
+                  <div className="absolute bottom-full right-0 sm:left-1/2 sm:right-auto sm:-translate-x-1/2 mb-3 w-[85vw] max-w-[260px] sm:w-64 p-3 bg-slate-800 text-slate-200 text-xs rounded-xl shadow-2xl opacity-0 group-hover:opacity-100 group-focus:opacity-100 transition-opacity duration-300 pointer-events-none z-50 border border-slate-700">
+                    <p className="font-semibold mb-1.5 text-slate-100">Score Breakdown:</p>
+                    <ul className="list-disc pl-4 space-y-1 text-slate-300">
+                      <li>Transaction diversity (40%)</li>
+                      <li>Token diversity (30%)</li>
+                      <li>Total network activity (30%)</li>
+                    </ul>
+                    <div className="mt-2 pt-2 border-t border-slate-700">
+                      <div className="flex items-center gap-2 mb-1"><span className="w-2 h-2 rounded-full bg-rose-400"></span> &lt; 30 (Low Health)</div>
+                      <div className="flex items-center gap-2 mb-1"><span className="w-2 h-2 rounded-full bg-amber-400"></span> 30 - 70 (Moderate)</div>
+                      <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-emerald-400"></span> &gt; 70 (High Health)</div>
+                    </div>
+                    {/* Tooltip Arrow */}
+                    <div className="absolute -bottom-1.5 right-6 sm:left-1/2 sm:right-auto sm:-translate-x-1/2 w-3 h-3 bg-slate-800 border-b border-r border-slate-700 rotate-45"></div>
+                  </div>
+
                   <div className="flex items-center justify-between mb-2">
-                    <p className="text-xs text-slate-500 uppercase tracking-wider border-b border-dashed border-slate-600 pb-0.5">Health Score</p>
-                    <span className={`text-xs font-bold ${
-                      result.healthScore >= 70 ? 'text-emerald-400' : 
+                    <div className="flex items-center gap-1 border-b border-dashed border-slate-600 pb-0.5">
+                      <p className="text-xs text-slate-500 uppercase tracking-wider">Health Score</p>
+                      <div className="relative flex items-center justify-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 text-slate-400 opacity-80 group-hover:opacity-100 group-focus:opacity-100 transition-opacity relative z-10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <div className="absolute inset-0 bg-slate-400/20 rounded-full animate-ping opacity-75"></div>
+                      </div>
+                    </div>
+                    <span className={`text-xs font-bold shrink-0 whitespace-nowrap ${
+                      result.healthScore > 70 ? 'text-emerald-400' : 
                       result.healthScore >= 30 ? 'text-amber-400' : 'text-rose-400'
                     }`}>
                       {loading ? '-' : `${result.healthScore}/100`}
@@ -390,7 +415,7 @@ export default function Home() {
                   <div className="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden mt-1 relative">
                     <div 
                       className={`absolute top-0 left-0 h-full transition-all duration-1000 ease-out shadow-[0_0_10px_rgba(0,0,0,0.5)] ${
-                        result.healthScore >= 70 ? 'bg-emerald-400 shadow-emerald-400/50' : 
+                        result.healthScore > 70 ? 'bg-emerald-400 shadow-emerald-400/50' : 
                         result.healthScore >= 30 ? 'bg-amber-400 shadow-amber-400/50' : 'bg-rose-400 shadow-rose-400/50'
                       }`}
                       style={{ width: loading ? '0%' : `${result.healthScore}%` }}
@@ -406,28 +431,28 @@ export default function Home() {
                   <div className="absolute top-0 right-0 p-4 opacity-5">
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-32 w-32" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
                   </div>
-                  <div className="flex items-center justify-between mb-4 relative z-10">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-0 mb-4 relative z-10">
                     <div className="flex items-center gap-2">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-indigo-400" viewBox="0 0 20 20" fill="currentColor">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-indigo-400 shrink-0" viewBox="0 0 20 20" fill="currentColor">
                         <path fillRule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clipRule="evenodd" />
                       </svg>
                       <h3 className="text-sm font-bold text-indigo-300 uppercase tracking-widest">AI Wallet Insights</h3>
                     </div>
                     
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 self-end sm:self-auto w-full sm:w-auto mt-2 sm:mt-0">
                       {aiSummary && !aiSummary.startsWith('ERROR:') && !loadingSummary && (
                         <button 
                           onClick={handleCopySummary}
-                          className="text-xs bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors border border-indigo-500/30"
+                          className="flex-1 sm:flex-none justify-center text-sm sm:text-xs bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 px-4 sm:px-3 py-3 sm:py-1.5 min-h-[44px] sm:min-h-0 rounded-xl sm:rounded-lg flex items-center gap-1.5 transition-colors border border-indigo-500/30 font-medium"
                         >
                           {copiedSummary ? (
                             <>
-                              <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 text-emerald-400" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 sm:h-3.5 sm:w-3.5 text-emerald-400" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>
                               Copied!
                             </>
                           ) : (
                             <>
-                              <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 sm:h-3.5 sm:w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
                               Copy
                             </>
                           )}
@@ -436,7 +461,7 @@ export default function Home() {
                       <button 
                         onClick={() => generateAiSummary(result?.transactions || [])}
                         disabled={loadingSummary}
-                        className="text-xs bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed border border-indigo-500/30"
+                        className="flex-1 sm:flex-none justify-center text-sm sm:text-xs bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 px-4 sm:px-3 py-3 sm:py-1.5 min-h-[44px] sm:min-h-0 rounded-xl sm:rounded-lg flex items-center gap-1.5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed border border-indigo-500/30 font-medium"
                       >
                         <svg xmlns="http://www.w3.org/2000/svg" className={`h-3.5 w-3.5 ${loadingSummary ? 'animate-spin' : ''}`} viewBox="0 0 20 20" fill="currentColor">
                           <path fillRule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clipRule="evenodd" />
@@ -453,8 +478,8 @@ export default function Home() {
                       <div className="h-4 bg-indigo-500/20 rounded w-2/3"></div>
                     </div>
                   ) : (
-                    <div className="relative z-10 p-4 bg-slate-900/40 rounded-xl border border-indigo-500/10 backdrop-blur-sm">
-                      <p className={`text-[15px] leading-relaxed whitespace-pre-wrap font-medium ${aiSummary?.startsWith('ERROR:') ? 'text-rose-400' : 'text-slate-200'}`}>
+                    <div className="relative z-10 p-4 sm:p-5 bg-slate-900/40 rounded-xl border border-indigo-500/10 backdrop-blur-sm">
+                      <p className={`text-sm sm:text-[15px] leading-relaxed whitespace-pre-wrap font-medium ${aiSummary?.startsWith('ERROR:') ? 'text-rose-400' : 'text-slate-200'}`}>
                         {aiSummary}
                       </p>
                     </div>
@@ -505,8 +530,8 @@ export default function Home() {
                       }
 
                       return (
-                        <div key={`${tx.hash}-${idx}`} className="flex items-center justify-between p-3 bg-slate-900/60 rounded-xl border border-slate-800/50 hover:bg-slate-800/50 transition-colors">
-                          <div className="flex items-center gap-3">
+                        <div key={`${tx.hash}-${idx}`} className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-3 gap-3 sm:gap-0 bg-slate-900/60 rounded-xl border border-slate-800/50 hover:bg-slate-800/50 transition-colors">
+                          <div className="flex items-center gap-3 w-full sm:w-auto">
                             <div className={`flex items-center justify-center shrink-0 w-8 h-8 rounded-full border ${themeColor}`}>
                               {iconSvg}
                             </div>
@@ -514,14 +539,14 @@ export default function Home() {
                               <span className={`text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-md border ${themeColor}`}>
                                 {actionLabel}
                               </span>
-                              <a href={`https://etherscan.io/tx/${tx.hash}`} target="_blank" rel="noopener noreferrer" className="text-xs text-indigo-400/80 hover:text-indigo-300 transition-colors truncate w-24 sm:w-32 block">
+                              <a href={`https://etherscan.io/tx/${tx.hash}`} target="_blank" rel="noopener noreferrer" className="text-xs sm:text-sm text-indigo-400/80 hover:text-indigo-300 transition-colors truncate max-w-[120px] sm:max-w-[200px] block py-1">
                                 {tx.hash}
                               </a>
                             </div>
                           </div>
-                          <div className="text-right shrink-0">
-                            <p className="text-sm font-bold text-slate-200">{tx.value} {tx.asset}</p>
-                            <p className="text-xs text-slate-500">Block {tx.blockNumber}</p>
+                          <div className="text-left sm:text-right shrink-0 ml-11 sm:ml-0 mt-1 sm:mt-0">
+                            <p className="text-[13px] sm:text-sm font-bold text-slate-200 truncate max-w-[200px] sm:max-w-[150px]">{tx.value} {tx.asset}</p>
+                            <p className="text-xs text-slate-500 mt-0.5">Block {tx.blockNumber}</p>
                           </div>
                         </div>
                       );
